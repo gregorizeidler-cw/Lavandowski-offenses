@@ -83,7 +83,7 @@ WITH
             8423054, 8832903, 15858378, 16368511, 18758930, 
             19897830, 20583019, 20698248, 25769012
         )
-        AND an.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)
+        AND an.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 3 DAY)
     ),
     ai_alerts AS (
         SELECT
