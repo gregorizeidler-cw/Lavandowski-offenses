@@ -8,7 +8,7 @@ load_dotenv()
 # Initialize the OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def get_chatgpt_response(prompt, model="gpt-4o"):
+def get_chatgpt_response(prompt, model="o3-mini-2025-01-31"):
     """
     Sends a prompt to the OpenAI GPT model and returns the response.
 
@@ -36,11 +36,13 @@ def get_chatgpt_response(prompt, model="gpt-4o"):
                         "SEMPRE quando pedir BV, nunca esqueça de pedir comprovante de endereço e renda"
                         "Se houver registros de cash out, mas não houver entradas em cash in ou PIX, não conclua automaticamente que se trata de (saída sem origem de recursos). É possível que o valor tenha sido proveniente de outras fontes, como boletos ou transações via adquirência, entre outras."
                         "Você DEVE fornecer justificativas detalhadas para todas as suas conclusões, indicando as evidências ou padrões encontrados e como eles se relacionam com potenciais riscos de lavagem de dinheiro. Considere fatores como frequência, valores transacionados e conexões entre partes."
+                       
                     )
                 },
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.0
+            reasoning_effort="high",
+            #temperature=0.0
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
