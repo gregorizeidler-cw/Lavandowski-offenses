@@ -121,7 +121,7 @@ WITH
             score,
             features
         FROM `ai-services-sae.aml_model.predictions`
-        WHERE TIMESTAMP(timestamp) >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)
+        WHERE timestamp >= DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
           AND label = 1
     )
 
