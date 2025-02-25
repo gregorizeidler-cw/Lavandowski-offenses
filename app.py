@@ -9,7 +9,7 @@ from functions import (
    get_gpt_analysis,
    client as bigquery_client
 )
-from fetch_data import fetch_query, test_query, fetch_combined_query
+from fetch_data import fetch_combined_query
 
 
 # Load environment variables
@@ -26,7 +26,7 @@ def fetch_flagged_users():
        return [{"user_id": int(USER_ID), "alert_type": "Custom Alert"}]
    else:
        # If no USER_ID, proceed with the usual query
-       query = fetch_combined_query  # Use test_query if you're testing
+       query = fetch_combined_query 
        query_job = bigquery_client.query(query)
        results = query_job.result()
        return [dict(row) for row in results]
