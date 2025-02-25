@@ -108,23 +108,7 @@ WITH
         WHERE an.analyst_id IN (
             8423054, 8832903, 15858378, 16368511, 18758930,
             19897830, 20583019, 20698248, 25071066, 25261377,
-            24954170, 25769012, 27951634, 28279057, 28320827,
-            29865856, 29842685, 30046553, 29840096
-        )
-          AND an.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)
-    ),
-    ai_alerts AS (
-        SELECT
-            user_id,
-            FORMAT_TIMESTAMP('%d-%m-%Y', TIMESTAMP(timestamp)) AS alert_date,
-            'AI Alert' AS alert_type,
-            score,
-            features
-        FROM `ai-services-sae.aml_model.predictions`
-        WHERE TIMESTAMP(timestamp) >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)
-          AND label = 1
-    )
-
+            24954170, 25769012, 2
 SELECT * FROM traditional_alerts
 UNION ALL
 SELECT * FROM ai_alerts
