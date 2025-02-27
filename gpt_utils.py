@@ -28,7 +28,7 @@ def get_chatgpt_response(prompt, model="gpt-4o-2024-11-20"):
     
     Args:
         prompt (str): O prompt ou contexto a ser analisado.
-        model (str): O modelo GPT a ser utilizado (padrão: "gpt-4").
+        model (str): O modelo GPT a ser utilizado (padrão: "gpt-4o-2024-11-20").
     
     Returns:
         str: Resposta do modelo ou uma mensagem de erro customizada.
@@ -43,7 +43,7 @@ def get_chatgpt_response(prompt, model="gpt-4o-2024-11-20"):
             ]
         }
         # Define parâmetros específicos conforme o modelo
-        if model == "gpt-4":
+        if model == "gpt-4o-2024-11-20":
             params["temperature"] = 0.0
         elif model == "o3-mini-2025-01-31":
             params["reasoning_effort"] = "high"
@@ -70,7 +70,7 @@ def get_analysis_and_decision(prompt):
         str: Uma string contendo a análise completa seguida da decisão final.
     """
     # Realiza a análise completa com o GPT‑4
-    analysis = get_chatgpt_response(prompt, model="gpt-4")
+    analysis = get_chatgpt_response(prompt, model="gpt-4o-2024-11-20")
     
     # Cria o prompt para o o3-mini, solicitando a decisão final em exatamente duas linhas
     decision_prompt = (
