@@ -182,8 +182,7 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
    """
 
    devices_query = f"""
-   SELECT * EXCEPT(user_id) FROM metrics_amlft.user_device
-   WHERE user_id = {user_id}
+   SELECT * EXCEPT(user_id) FROM metrics_amlft.user_device WHERE user_id = {user_id}
    """
 
    # Initialize variables
@@ -306,67 +305,27 @@ def cardholder_report(user_id: int, alert_type: str, pep_data=None) -> dict:
    """Generates a report for a cardholder user."""
    # Define queries
    query_cardholders = f"""
-   SELECT * FROM metrics_amlft.cardholder_report
-   WHERE user_id = {user_id}
-   LIMIT 1
+   SELECT * FROM metrics_amlft.cardholder_report WHERE user_id = {user_id} LIMIT 1
    """
 
    query_issuing_concentration = f"""
-   SELECT * EXCEPT(user_id) FROM metrics_amlft.issuing_concentration
-   WHERE user_id = {user_id}
+   SELECT * EXCEPT(user_id) FROM metrics_amlft.issuing_concentration WHERE user_id = {user_id}
    """
 
    query_pix_concentration = f"""
-   SELECT * FROM metrics_amlft.pix_concentration
-   WHERE user_id = {user_id}
+   SELECT * FROM metrics_amlft.pix_concentration WHERE user_id = {user_id}
    """
 
    query_offense_history = f"""
-   SELECT DISTINCT(an.id),
-       FORMAT_DATETIME('%d-%m-%Y', an.created_at) AS date,
-       FORMAT_DATETIME('%H:%M:%S', an.created_at) AS time,
-       an.user_id,
-       analysis_type,
-       conclusion,
-       priority,
-       o.offense_group,
-       o.name,
-       an.description,
-       INITCAP(REPLACE(REPLACE(SPLIT(u.email, '@')[OFFSET(0)], '_', ' '), '.', ' ')) AS analyst,
-       an.analyst_id,
-       an.automatic_pipeline
-   FROM infinitepay-production.maindb.offense_analyses an
-   JOIN infinitepay-production.maindb.users u ON u.id = an.analyst_id
-   JOIN infinitepay-production.maindb.offenses AS o ON o.id = an.offense_id
-   LEFT JOIN infinitepay-production.maindb.offense_actions AS act ON act.offense_analysis_id = an.id
-   WHERE an.user_id = {user_id}
-   ORDER BY id DESC;
+   SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_offense_analysis_data` WHERE user_id =  {user_id} ORDER BY id DESC
    """
 
    contacts_query = f"""
-   SELECT DISTINCT p.phone_number IS NOT NULL AS has_phonecast,
-   u.id AS user_id, name, c.raw_phone_number AS raw_phone_number,
-   u.status AS status
-   FROM ai-services-sae.tyrell_euler.scd_raw__contacts c
-   LEFT JOIN infinitepay-production.external_sources.phonecast p
-   ON p.phone_number = infinitepay-production.udfs.phone_number_norm(raw_phone_number)
-   INNER JOIN infinitepay-production.maindb.users u
-   ON u.phone_number = infinitepay-production.udfs.phone_number_norm(raw_phone_number)
-   WHERE user_id = {user_id}
+   SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_phonecast_data` WHERE user_id = {user_id}
    """
 
    devices_query = f"""
-   SELECT
-       identity_validation_status,
-       ip,
-       mdl.created_at,
-       model,
-       advertising_id,
-       platform_id,
-       authorized
-   FROM maindb.mobile_device_logins mdl
-   LEFT JOIN maindb.mobile_devices mb ON mb.id = mdl.mobile_device_id
-   WHERE user_id = {user_id}
+   SELECT * EXCEPT(user_id) FROM metrics_amlft.user_device WHERE user_id = {user_id}
    """
 
    # Initialize variables
