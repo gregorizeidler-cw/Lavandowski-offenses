@@ -78,56 +78,7 @@ def fetch_lawsuit_data(user_id: int) -> pd.DataFrame:
 def fetch_business_data(user_id: int) -> pd.DataFrame:
    """Fetches business data for the given user_id."""
    query = f"""
-   WITH User_Document AS (
-   SELECT
-       id AS user_id,
-       REGEXP_REPLACE(CAST(cpf AS STRING), r'[^0-9]', '') AS document_number
-   FROM maindb.cardholders
-   WHERE id = {user_id}
-
-
-   UNION ALL
-
-
-   SELECT
-       user_id,
-       REGEXP_REPLACE(CAST(document_number AS STRING), r'[^0-9]', '') AS document_number
-   FROM maindb.merchants
-   WHERE user_id = {user_id}
-   ),
-
-
-   Filtered_KYC AS (
-   SELECT
-       document_number,
-       BusinessRelationships
-   FROM maindb.kyc
-   WHERE REGEXP_REPLACE(CAST(document_number AS STRING), r'[^0-9]', '') IN (SELECT document_number FROM User_Document)
-   ),
-
-
-   UnnestBusinessRelationships AS (
-   SELECT
-       REGEXP_REPLACE(CAST(document_number AS STRING), r'[^0-9]', '') AS document_number,
-       BR
-   FROM Filtered_KYC,
-   UNNEST(JSON_EXTRACT_ARRAY(BusinessRelationships)) AS BR
-   )
-
-
-   SELECT
-   u.user_id,
-   ubr.document_number,
-   JSON_VALUE(ubr.BR, '$.RelatedEntityTaxIdNumber') AS RelatedEntityTaxIdNumber,
-   JSON_VALUE(ubr.BR, '$.RelatedEntityName') AS RelatedEntityName,
-   JSON_VALUE(ubr.BR, '$.RelatedEntityTaxIdCountry') AS Country,
-   JSON_VALUE(ubr.BR, '$.RelationshipName') AS RelationshipName,
-   JSON_VALUE(ubr.BR, '$.RelationshipType') AS RelationshipType,
-   JSON_VALUE(ubr.BR, '$.RelationshipSubtype') AS RelationshipSubtype,
-   JSON_VALUE(ubr.BR, '$.IsCurrentlyActive') AS IsCurrentlyActive,
-   JSON_VALUE(ubr.BR, '$.LastUpdateDate') AS LastUpdateDate
-   FROM UnnestBusinessRelationships AS ubr
-   JOIN User_Document AS u ON u.document_number = ubr.document_number;
+   SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_business_relationships_data` WHERE user_id = {user_id}
    """
 
 
@@ -138,8 +89,7 @@ def fetch_business_data(user_id: int) -> pd.DataFrame:
 def fetch_sanctions_history(user_id: int) -> pd.DataFrame:
    """Fetches KYC sanctions history for the given user_id."""
    query = f"""
-   SELECT * FROM infinitepay-production.metrics_amlft.sanctions_history
-WHERE user_id = {user_id}
+   SELECT * FROM infinitepay-production.metrics_amlft.sanctions_history WHERE user_id = {user_id}
    """
    df = execute_query(query)
    return df
