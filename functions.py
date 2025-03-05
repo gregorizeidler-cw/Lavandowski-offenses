@@ -96,28 +96,7 @@ def fetch_sanctions_history(user_id: int) -> pd.DataFrame:
 def fetch_denied_transactions(user_id: int) -> pd.DataFrame:
    """Fetches denied transactions for the given user_id (merchant_id)."""
    query = f"""
-       SELECT
-       card_number,
-       COUNT(*) AS transaction_count,
-       SUM(amount) AS total_amount,
-       merchant_id,
-       payment_method,
-       capture_method,
-       card_holder_name,
-       action,
-       type_of
-   FROM maindb.risk_transactions
-   WHERE merchant_id = {user_id}
-   GROUP BY
-       card_number,
-       merchant_id,
-       payment_method,
-       card_holder_name,
-       capture_method,
-       action,
-       type_of
-   ORDER BY
-       card_number;
+       SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_risk_transactions_data` WHERE merchant_id = {user_id} ORDER BY card_number
    """
    df = execute_query(query)
    return df
