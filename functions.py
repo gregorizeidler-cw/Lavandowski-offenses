@@ -133,8 +133,7 @@ def convert_decimals(data):
 def fetch_prison_transactions(user_id: int) -> pd.DataFrame:
    """Fetches prison transactions for the given user_id."""
    query = f"""
-   SELECT * EXCEPT(user_id) FROM infinitepay-production.metrics_amlft.prison_transactions
-   WHERE user_id = {user_id}
+   SELECT * EXCEPT(user_id) FROM infinitepay-production.metrics_amlft.prison_transactions WHERE user_id = {user_id}
    """
    df = execute_query(query)
    return df
@@ -154,43 +153,20 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
    """Generates a report for a merchant user."""
    # Define queries
    query_merchants = f"""
-   SELECT * FROM metrics_amlft.merchant_report
-   WHERE user_id = {user_id}
-   LIMIT 1
+   SELECT * FROM metrics_amlft.merchant_report WHERE user_id = {user_id} LIMIT 1
    """
 
    # UPDATED ISSUING QUERY
    query_issuing_concentration = f"""
-   SELECT *
-   FROM `infinitepay-production.metrics_amlft.lavandowski_issuing_payments_data`
-   WHERE user_id = {user_id}
+   SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_issuing_payments_data` WHERE user_id = {user_id}
    """
 
    query_pix_concentration = f"""
-   SELECT * FROM metrics_amlft.pix_concentration
-   WHERE user_id = {user_id}
+   SELECT * FROM metrics_amlft.pix_concentration WHERE user_id = {user_id}
    """
 
    query_offense_history = f"""
-   SELECT DISTINCT(an.id),
-       FORMAT_DATETIME('%d-%m-%Y', an.created_at) AS date,
-       FORMAT_DATETIME('%H:%M:%S', an.created_at) AS time,
-       an.user_id,
-       analysis_type,
-       conclusion,
-       priority,
-       o.offense_group,
-       o.name,
-       an.description,
-       INITCAP(REPLACE(REPLACE(SPLIT(u.email, '@')[OFFSET(0)], '_', ' '), '.', ' ')) AS analyst,
-       an.analyst_id,
-       an.automatic_pipeline
-   FROM infinitepay-production.maindb.offense_analyses an
-   JOIN infinitepay-production.maindb.users u ON u.id = an.analyst_id
-   JOIN infinitepay-production.maindb.offenses AS o ON o.id = an.offense_id
-   LEFT JOIN infinitepay-production.maindb.offense_actions AS act ON act.offense_analysis_id = an.id
-   WHERE an.user_id = {user_id}
-   ORDER BY id DESC;
+   SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_offense_analysis_data` WHERE user_id =  {user_id} ORDER BY id DESC
    """
 
    query_transaction_concentration = f"""
