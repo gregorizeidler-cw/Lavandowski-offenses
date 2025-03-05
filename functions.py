@@ -105,40 +105,7 @@ def fetch_denied_transactions(user_id: int) -> pd.DataFrame:
 def fetch_denied_pix_transactions(user_id: int) -> pd.DataFrame:
    """Fetches denied PIX transactions for the given user_id and the risk check that failed."""
    query = f"""
-   WITH shadow_rules AS (
-     SELECT
-       id,
-       results_unnested.key AS risk_check
-     FROM
-       infinitepay-production.ldg_app_sync.risk_pix_transfers a,
-       UNNEST(a.results) AS results_unnested,
-       UNNEST(results_unnested.value) AS result_key_value
-     WHERE
-       (_PARTITIONTIME >= CURRENT_TIMESTAMP - INTERVAL 15 DAY OR _PARTITIONTIME IS NULL)
-       AND result_key_value.key = 'shadow_rule'
-       AND result_key_value.value = 'True'
-   )
-   SELECT
-     TIMESTAMP(a.timestamp) AS timestamp,
-     a.id AS str_pix_transfer_id,
-     a.source_id AS debitor_user_id,
-     results_unnested.key AS risk_check,
-     result_key_value.value AS individual_risk_check_result
-   FROM
-     infinitepay-production.ldg_app_sync.risk_pix_transfers a,
-     UNNEST(a.results) AS results_unnested,
-     UNNEST(results_unnested.value) AS result_key_value
-   LEFT JOIN
-     shadow_rules sr ON (sr.id = a.id AND sr.risk_check = results_unnested.key)
-   WHERE
-     (_PARTITIONTIME >= CURRENT_TIMESTAMP - INTERVAL 15 DAY OR _PARTITIONTIME IS NULL)
-     AND result_key_value.key != 'shadow_rule'
-     AND sr.id IS NULL
-     AND a.approved = False
-     AND a.source_id = {user_id}
-     AND result_key_value.value = "False"
-   ORDER BY
-     a.id DESC;
+        SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_risk_pix_transfers_data` WHERE debitor_user_id = '{user_id}' ORDER BY str_pix_transfer_id DESC
    """
    df = execute_query(query)
    return df
