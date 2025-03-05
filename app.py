@@ -43,54 +43,7 @@ def fetch_betting_houses():
 
 def fetch_pep_data(user_id):
    pep_query = rf"""
-   DECLARE placeholder INT64 DEFAULT {user_id};
-
-
-   WITH user_transactions AS (
-       SELECT
-           *,
-           CASE
-               WHEN debitor_user_id = placeholder THEN 'DEBIT'
-               WHEN creditor_user_id = placeholder THEN 'CREDIT'
-           END AS user_transaction_type,
-           CASE
-               WHEN debitor_user_id = placeholder THEN JSON_EXTRACT_SCALAR(credit_party_details, '$.document_number')
-               WHEN creditor_user_id = placeholder THEN JSON_EXTRACT_SCALAR(debit_party_details, '$.document_number')
-           END AS other_party_document_number
-       FROM `maindb.pix_transfers`
-       WHERE debitor_user_id = placeholder OR creditor_user_id = placeholder
-   ),
-   peps_aggregated AS (
-       SELECT
-           REGEXP_REPLACE(document_number, r'\D', '') AS document_number,
-           name,
-           job_description,
-           STRING_AGG(DISTINCT agency, ', ') AS agencies
-       FROM `infinitepay-production.maindb.politically_exposed_people`
-       GROUP BY
-           REGEXP_REPLACE(document_number, r'\D', ''),
-           name,
-           job_description
-   )
-   SELECT
-       ut.user_transaction_type,
-       peps.document_number AS pep_document_number,
-       peps.name AS pep_name,
-       peps.job_description AS job_description,
-       peps.agencies,
-       SUM(CAST(ut.amount AS FLOAT64) / 100) AS total_amount
-   FROM user_transactions ut
-   INNER JOIN peps_aggregated peps
-       ON REGEXP_REPLACE(ut.other_party_document_number, r'\D', '') = peps.document_number
-   GROUP BY
-       peps.document_number,
-       peps.name,
-       ut.user_transaction_type,
-       peps.job_description,
-       peps.agencies
-   ORDER BY
-       peps.name,
-       ut.user_transaction_type;
+   SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_pep_transactions_data` WHERE user_id = {user_id}
    """
    query_job = bigquery_client.query(pep_query)
    results = query_job.result()
