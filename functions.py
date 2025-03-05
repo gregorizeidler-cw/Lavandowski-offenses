@@ -67,9 +67,7 @@ def format_cpf(cpf: str) -> str:
 def fetch_lawsuit_data(user_id: int) -> pd.DataFrame:
    """Fetches lawsuit data for the given user_id (New Lighter Logic)."""
    query = f"""
-   SELECT * 
-   FROM `infinitepay-production.metrics_amlft.lavandowski_lawsuits_data`
-   WHERE user_id = {user_id}
+   SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_lawsuits_data` WHERE user_id = {user_id}
    """
    df = execute_query(query)
    return df
