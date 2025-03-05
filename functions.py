@@ -170,41 +170,11 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
    """
 
    query_transaction_concentration = f"""
-   SELECT * EXCEPT(merchant_id) FROM metrics_amlft.cardholder_concentration
-   WHERE merchant_id = {user_id}
-   ORDER BY total_approved_by_ch DESC
+   SELECT * EXCEPT(merchant_id) FROM metrics_amlft.cardholder_concentration WHERE merchant_id = {user_id} ORDER BY total_approved_by_ch DESC
    """
 
    products_online_store = f"""
-   WITH user_handle AS (
-       SELECT handle
-       FROM maindb.users
-       WHERE id = {user_id}
-   ),
-   products_filtered AS (
-       SELECT
-           id,
-           name,
-           quantity,
-           updated_at,
-           external_payment_url,
-           product_type,
-           sales_channels,
-           REGEXP_SUBSTR(external_payment_url, 'io/(.*?)/') AS handle
-       FROM infinitepay-production.pdvdb.products
-       WHERE external_payment_url IS NOT NULL
-   )
-   SELECT
-       p.id,
-       p.name,
-       p.quantity,
-       p.updated_at,
-       p.external_payment_url,
-       p.product_type,
-       p.sales_channels
-   FROM products_filtered p
-   JOIN user_handle u ON p.handle = u.handle
-   WHERE p.external_payment_url IS NOT NULL;
+   SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_online_store_data` WHERE user_id = {user_id}
    """
 
    contacts_query = f"""
