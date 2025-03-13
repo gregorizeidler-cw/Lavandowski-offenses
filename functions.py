@@ -489,8 +489,28 @@ Transações em Horários Atípicos:
 - Cash In PIX: R${report_data['total_cash_in_pix_atypical_hours']:,.2f}
 - Cash Out PIX: R${report_data['total_cash_out_pix_atypical_hours']:,.2f}
 
+
+Concentração de Transações por Portador de Cartão:
+{transaction_concentration_json}
+
+Análise Adicional para Concentração de Transações por Portador de Cartão:
+- Verifique se há transações com valores idênticos ou muito similares (usando card_holder_name, card_number e card_token_id) ocorrendo em intervalos curtos.
+- Utilize os campos total_approved_by_ch e count_approved_transactions para identificar portadores com volume elevado e detectar picos anormais.
+- Analise os valores de total_approved_by_ch_atypical_hours e Percentage_atypica para identificar transações em horários atípicos com padrões suspeitos.
+- Avalie o capture_method para verificar se determinados métodos de captura estão concentrados.
+- Verifique a concentração por emissor (issuer_id e issuer_name) e considere o risco associado ao country do emissor.
+
+
 Concentração de Issuing:
 {issuing_concentration_json}
+
+Análise Adicional para Concentração de Issuing:
+- Verifique se há repetição de merchant_name ou padrões de valores anômalos em total_amount.
+- Utilize os campos total_amount, percentage_of_total, message__card_acceptor_mcc e message__card_acceptor_country_code para identificar picos ou concentrações excessivas.
+- Compare os valores de total_amount com o percentage_of_total para detectar discrepâncias ou padrões incomuns.
+- Caso existam transações repetidas ou com valores atípicos, destaque essas ocorrências e discuta possíveis riscos associados.
+- Avalie se os códigos MCC (message__card_acceptor_mcc) correspondem a setores de alto risco e se o país do adquirente (message__card_acceptor_country_code) aponta para origens que requeiram atenção especial.
+
 
 Contatos (Atenção para contatos com status 'blocked'):
 {contacts_json}
