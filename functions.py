@@ -60,6 +60,16 @@ def format_cpf(cpf: str) -> str:
         return cpf
 
 
+def execute_query(query):
+    """Executa uma query no BigQuery e retorna um DataFrame."""
+    try:
+        df = client.query(query).result().to_dataframe()
+        return df
+    except Exception as e:
+        logging.error(f"Error executing query: {e}")
+        return pd.DataFrame()
+
+
 def fetch_lawsuit_data(user_id: int) -> pd.DataFrame:
     """Busca dados de processos para o user_id informado."""
     query = f"""
@@ -110,6 +120,26 @@ def fetch_denied_pix_transactions(user_id: int) -> pd.DataFrame:
     return df
 
 
+def fetch_prison_transactions(user_id: int) -> pd.DataFrame:
+    """Busca transações no presídio para o user_id informado."""
+    query = f"""
+    SELECT * EXCEPT(user_id) FROM infinitepay-production.metrics_amlft.prison_transactions
+    WHERE user_id = {user_id}
+    """
+    df = execute_query(query)
+    return df
+
+
+def fetch_bets_pix_transfers(user_id: int) -> pd.DataFrame:
+    """Busca transações de apostas via PIX para o user_id informado."""
+    query = f"""
+    SELECT * FROM `infinitepay-production.metrics_amlft.bets_pix_transfers`
+    WHERE user_id = {user_id}
+    """
+    df = execute_query(query)
+    return df
+
+
 def convert_decimals(data):
     """Converte recursivamente objetos Decimal em float."""
     if isinstance(data, list):
@@ -123,26 +153,6 @@ def convert_decimals(data):
                 for k, v in data.items()}
     else:
         return data
-
-
-def fetch_prison_transactions(user_id: int) -> pd.DataFrame:
-    """Busca transações no presídio para o user_id informado."""
-    query = f"""
-    SELECT * EXCEPT(user_id) FROM infinitepay-production.metrics_amlft.prison_transactions
-    WHERE user_id = {user_id}
-    """
-    df = execute_query(query)
-    return df
-
-
-def execute_query(query):
-    """Executa uma query no BigQuery e retorna um DataFrame."""
-    try:
-        df = client.query(query).result().to_dataframe()
-        return df
-    except Exception as e:
-        logging.error(f"Error executing query: {e}")
-        return pd.DataFrame()
 
 
 def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
@@ -242,6 +252,10 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
     denied_pix_transactions_list = denied_pix_transactions_df.to_dict(orient='records') if not denied_pix_transactions_df.empty else []
     denied_pix_transactions_list = convert_decimals(denied_pix_transactions_list)
 
+    bets_pix_transfers_df = fetch_bets_pix_transfers(user_id)
+    bets_pix_transfers_list = bets_pix_transfers_df.to_dict(orient='records') if not bets_pix_transfers_df.empty else []
+    bets_pix_transfers_list = convert_decimals(bets_pix_transfers_list)
+
     report = {
         "merchant_info": merchant_info_dict,
         "total_cash_in_pix": total_cash_in_pix,
@@ -261,7 +275,8 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
         "business_data": business_data_list,
         "prison_transactions": prison_transactions_list,
         "sanctions_history": sanctions_history_list,
-        "denied_pix_transactions": denied_pix_transactions_list
+        "denied_pix_transactions": denied_pix_transactions_list,
+        "bets_pix_transfers": bets_pix_transfers_list
     }
 
     return report
@@ -345,6 +360,10 @@ def cardholder_report(user_id: int, alert_type: str, pep_data=None) -> dict:
     denied_pix_transactions_list = denied_pix_transactions_df.to_dict(orient='records') if not denied_pix_transactions_df.empty else []
     denied_pix_transactions_list = convert_decimals(denied_pix_transactions_list)
 
+    bets_pix_transfers_df = fetch_bets_pix_transfers(user_id)
+    bets_pix_transfers_list = bets_pix_transfers_df.to_dict(orient='records') if not bets_pix_transfers_df.empty else []
+    bets_pix_transfers_list = convert_decimals(bets_pix_transfers_list)
+
     report = {
         "cardholder_info": cardholder_info_dict,
         "total_cash_in_pix": total_cash_in_pix,
@@ -361,7 +380,8 @@ def cardholder_report(user_id: int, alert_type: str, pep_data=None) -> dict:
         "business_data": business_data_list,
         "prison_transactions": prison_transactions_list,
         "sanctions_history": sanctions_history_list,
-        "denied_pix_transactions": denied_pix_transactions_list
+        "denied_pix_transactions": denied_pix_transactions_list,
+        "bets_pix_transfers": bets_pix_transfers_list
     }
 
     return report
@@ -386,6 +406,8 @@ def generate_prompt(report_data: dict, user_type: str, alert_type: str, betting_
     prison_transactions_json = json.dumps(report_data.get('prison_transactions', []), ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
     sanctions_history_json = json.dumps(report_data.get('sanctions_history', []), ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
     denied_pix_transactions_json = json.dumps(report_data.get('denied_pix_transactions', []), ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
+    bets_pix_transfers_json = json.dumps(report_data.get('bets_pix_transfers', []), ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
+    
     prompt = f"""
 Por favor, analise o caso abaixo.
 
@@ -453,6 +475,9 @@ Informações sobre processos judiciais:
 
 Histórico de Offenses:
 {offense_history_json}
+
+Transações de Apostas via PIX:
+{bets_pix_transfers_json}
 """
     else:
         prompt += f"""
@@ -496,6 +521,9 @@ Transações Confirmadamente Executadas Dentro do Presídio (Atenção especial 
 
 Histórico de Offenses:
 {offense_history_json}
+
+Transações de Apostas via PIX:
+{bets_pix_transfers_json}
 """
 
     return prompt
