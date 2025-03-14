@@ -167,13 +167,14 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
     query_pix_concentration = f"""
     SELECT * FROM metrics_amlft.pix_concentration WHERE user_id = {user_id}
     """
+    # Ajuste: Traz a tabela de cardholder_concentration para merchant_report
+    query_transaction_concentration = f"""
+    SELECT * EXCEPT(merchant_id) FROM `infinitepay-production.metrics_amlft.cardholder_concentration`
+    WHERE merchant_id = {user_id} ORDER BY total_approved_by_ch DESC
+    """
     query_offense_history = f"""
     SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_offense_analysis_data`
     WHERE user_id = {user_id} ORDER BY id DESC
-    """
-    query_transaction_concentration = f"""
-    SELECT * EXCEPT(merchant_id) FROM metrics_amlft.cardholder_concentration
-    WHERE merchant_id = {user_id} ORDER BY total_approved_by_ch DESC
     """
     products_online_store = f"""
     SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_online_store_data`
@@ -190,8 +191,8 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
     merchant_info = execute_query(query_merchants)
     issuing_concentration = execute_query(query_issuing_concentration)
     pix_concentration = execute_query(query_pix_concentration)
-    offense_history = execute_query(query_offense_history)
     transaction_concentration = execute_query(query_transaction_concentration)
+    offense_history = execute_query(query_offense_history)
     products_online = execute_query(products_online_store)
     contacts = execute_query(contacts_query)
     devices = execute_query(devices_query)
@@ -213,20 +214,20 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
 
     merchant_info_dict = merchant_info.to_dict(orient='records')[0] if not merchant_info.empty else {}
     issuing_concentration_list = issuing_concentration.to_dict(orient='records') if not issuing_concentration.empty else []
+    transaction_concentration_list = transaction_concentration.to_dict(orient='records') if not transaction_concentration.empty else []
     cash_in_list = cash_in.to_dict(orient='records') if not cash_in.empty else []
     cash_out_list = cash_out.to_dict(orient='records') if not cash_out.empty else []
     offense_history_list = offense_history.to_dict(orient='records') if not offense_history.empty else []
-    transaction_concentration_list = transaction_concentration.to_dict(orient='records') if not transaction_concentration.empty else []
     products_online_list = products_online.to_dict(orient='records') if not products_online.empty else []
     contacts_list = contacts.to_dict(orient='records') if not contacts.empty else []
     devices_list = devices.to_dict(orient='records') if not devices.empty else []
 
     merchant_info_dict = convert_decimals(merchant_info_dict)
     issuing_concentration_list = convert_decimals(issuing_concentration_list)
+    transaction_concentration_list = convert_decimals(transaction_concentration_list)
     cash_in_list = convert_decimals(cash_in_list)
     cash_out_list = convert_decimals(cash_out_list)
     offense_history_list = convert_decimals(offense_history_list)
-    transaction_concentration_list = convert_decimals(transaction_concentration_list)
     products_online_list = convert_decimals(products_online_list)
     contacts_list = convert_decimals(contacts_list)
     devices_list = convert_decimals(devices_list)
@@ -263,10 +264,10 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
         "total_cash_in_pix_atypical_hours": total_cash_in_pix_atypical_hours,
         "total_cash_out_pix_atypical_hours": total_cash_out_pix_atypical_hours,
         "issuing_concentration": issuing_concentration_list,
+        "transaction_concentration": transaction_concentration_list,
         "pix_cash_in": cash_in_list,
         "pix_cash_out": cash_out_list,
         "offense_history": offense_history_list,
-        "transaction_concentration": transaction_concentration_list,
         "products_online": products_online_list,
         "contacts": contacts_list,
         "devices": devices_list,
@@ -490,28 +491,13 @@ Transações em Horários Atípicos:
 - Cash In PIX: R${report_data['total_cash_in_pix_atypical_hours']:,.2f}
 - Cash Out PIX: R${report_data['total_cash_out_pix_atypical_hours']:,.2f}
 
-
-Concentração de Transações por Portador de Cartão:
-{transaction_concentration_json}
-
-Análise Adicional para Concentração de Transações por Portador de Cartão:
-- Verifique se há transações com valores idênticos ou muito similares (usando card_holder_name, card_number e card_token_id) ocorrendo em intervalos curtos.
-- Utilize os campos total_approved_by_ch e count_approved_transactions para identificar portadores com volume elevado e detectar picos anormais.
-- Analise os valores de total_approved_by_ch_atypical_hours e Percentage_atypica para identificar transações em horários atípicos com padrões suspeitos.
-- Avalie o capture_method para verificar se determinados métodos de captura estão concentrados.
-- Verifique a concentração por emissor (issuer_id e issuer_name) e considere o risco associado ao country do emissor.
-
-
 Concentração de Issuing:
 {issuing_concentration_json}
 
 Análise Adicional para Concentração de Issuing:
 - Verifique se há repetição de merchant_name ou padrões de valores anômalos em total_amount.
-- Utilize os campos total_amount, percentage_of_total, message__card_acceptor_mcc e message__card_acceptor_country_code para identificar picos ou concentrações excessivas.
-- Compare os valores de total_amount com o percentage_of_total para detectar discrepâncias ou padrões incomuns.
-- Caso existam transações repetidas ou com valores atípicos, destaque essas ocorrências e discuta possíveis riscos associados.
-- Avalie se os códigos MCC (message__card_acceptor_mcc) correspondem a setores de alto risco e se o país do adquirente (message__card_acceptor_country_code) aponta para origens que requeiram atenção especial.
-
+- Utilize os campos total_amount e percentage_of_total para identificar picos ou discrepâncias.
+- Considere analisar se os códigos MCC (message__card_acceptor_mcc) indicam setores de risco elevado.
 
 Contatos (Atenção para contatos com status 'blocked'):
 {contacts_json}
