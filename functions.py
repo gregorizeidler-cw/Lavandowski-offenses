@@ -552,7 +552,11 @@ Na sua análise, descreva:
 
 Lembre-se: Esta verificação deve ser feita para TODAS as transações, independentemente do tipo de alerta.
 """
+<<<<<<< HEAD
     elif alert_type == 'Goverment_Corporate_Cards_Alert':
+=======
+    elif alert_type == 'goverment_corporate_cards_alert [BR]':
+>>>>>>> 88ae53aeca0c8cfea48e9ef04d6ebfd0c0f236d8
          prompt += f"""
 A primeira frase da sua análise deve ser: "Cliente está transacionando com cartões corporativos governamentais."
 
@@ -613,7 +617,11 @@ Na sua análise, descreva:
 Lembre-se: Esta verificação deve ser feita para TODAS as transações PIX relacionadas a este alerta.
 Se não houver anomalias ou valores atípicos detectados, informe explicitamente na sua análise.
 """
+<<<<<<< HEAD
     elif alert_type == 'International_Cards_Alert':
+=======
+    elif alert_type == 'international_cards_alert [BR]':
+>>>>>>> 88ae53aeca0c8cfea48e9ef04d6ebfd0c0f236d8
          prompt += f"""
 A primeira frase da sua análise deve ser: "Cliente está transacionando com cartões internacionais."
 Atenção especial para Transações com Issuer Não Brasileiro:
@@ -652,7 +660,11 @@ Na sua análise, descreva:
 Lembre-se: Esta verificação deve ser feita para TODAS as transações relacionadas a este alerta.
 Se não houver transações com método de captura 'bank_slip', informe explicitamente na sua análise.
 """
+<<<<<<< HEAD
     elif alert_type == 'GAFI Alert':
+=======
+    elif alert_type == 'gafi_alert [US]':
+>>>>>>> 88ae53aeca0c8cfea48e9ef04d6ebfd0c0f236d8
          prompt += f"""
 A primeira frase da sua análise deve ser: "Cliente está transacionando com países proibidos do GAFI."
 
@@ -677,7 +689,11 @@ Na sua análise, descreva:
 Lembre-se: Esta verificação deve ser feita para TODAS as transações relacionadas a este alerta.
 Se não houver correspondências com emissores não brasileiros, informe explicitamente na sua análise.
 """
+<<<<<<< HEAD
     elif alert_type == 'pep_pix_alert' and pep_data is not None:
+=======
+    elif alert_type == 'pep_pix_alert [BR]' and pep_data is not None:
+>>>>>>> 88ae53aeca0c8cfea48e9ef04d6ebfd0c0f236d8
          prompt += f"""
 A primeira frase da sua análise deve ser: "Cliente transacionando com Pessoas Politicamente Expostas (PEP)."
 
