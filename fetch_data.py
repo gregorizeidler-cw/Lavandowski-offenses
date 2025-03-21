@@ -6,7 +6,20 @@ WITH
             FORMAT_TIMESTAMP('%d-%m-%Y', an.created_at) AS alert_date,
             CASE 
                 WHEN an.analyst_id = 8423054 THEN 'CH Alert'
-                WHEN an.analyst_id = 8832903 THEN 'Pep_Pix Alert'
+                WHEN an.analyst_id = 8832903 THEN '     )
+          AND an.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 3 DAY)
+    ),
+    ai_alerts AS (
+        SELECT
+            user_id,
+            FORMAT_TIMESTAMP('%d-%m-%Y', TIMESTAMP(timestamp)) AS alert_date,
+            'AI Alert' AS alert_type,
+            score,
+            features
+        FROM `ai-services-sae.aml_model.predictions`
+        WHERE timestamp >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 DAY)
+          AND label = 1
+    )'
                 WHEN an.analyst_id = 15858378 THEN 'GAFI Alert'
                 WHEN an.analyst_id = 16368511 THEN 'Merchant_Pix Alert'
                 WHEN an.analyst_id = 18758930 THEN 'International_Cards_Alert'
@@ -37,7 +50,7 @@ WITH
             24954170, 25769012, 27951634, 28279057, 28320827,
             29865856, 29842685, 30046553, 29840096
         )
-          AND an.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)
+          AND an.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 3 DAY)
     ),
     ai_alerts AS (
         SELECT
@@ -47,7 +60,7 @@ WITH
             score,
             features
         FROM `ai-services-sae.aml_model.predictions`
-        WHERE timestamp >= DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+        WHERE timestamp >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 DAY)
           AND label = 1
     )
 

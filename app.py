@@ -84,7 +84,7 @@ def analyze_user(user_data, betting_houses=None, pep_data=None):
 def run_bot():
     flagged_users = fetch_flagged_users()
     betting_houses = fetch_betting_houses()
-    key_master = ""  # Sua chave de autorização
+    key_master = "a3d229ab10904304930036a5c9cb2c07"  # Sua chave de autorização
     results = []
 
     progress_bar = st.progress(0)

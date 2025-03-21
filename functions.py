@@ -167,13 +167,14 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
     query_pix_concentration = f"""
     SELECT * FROM metrics_amlft.pix_concentration WHERE user_id = {user_id}
     """
+    # Ajuste: Traz a tabela de cardholder_concentration para merchant_report
+    query_transaction_concentration = f"""
+    SELECT * EXCEPT(merchant_id) FROM `infinitepay-production.metrics_amlft.cardholder_concentration`
+    WHERE merchant_id = {user_id} ORDER BY total_approved_by_ch DESC
+    """
     query_offense_history = f"""
     SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_offense_analysis_data`
     WHERE user_id = {user_id} ORDER BY id DESC
-    """
-    query_transaction_concentration = f"""
-    SELECT * EXCEPT(merchant_id) FROM metrics_amlft.cardholder_concentration
-    WHERE merchant_id = {user_id} ORDER BY total_approved_by_ch DESC
     """
     products_online_store = f"""
     SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_online_store_data`
@@ -190,8 +191,8 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
     merchant_info = execute_query(query_merchants)
     issuing_concentration = execute_query(query_issuing_concentration)
     pix_concentration = execute_query(query_pix_concentration)
-    offense_history = execute_query(query_offense_history)
     transaction_concentration = execute_query(query_transaction_concentration)
+    offense_history = execute_query(query_offense_history)
     products_online = execute_query(products_online_store)
     contacts = execute_query(contacts_query)
     devices = execute_query(devices_query)
@@ -213,20 +214,20 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
 
     merchant_info_dict = merchant_info.to_dict(orient='records')[0] if not merchant_info.empty else {}
     issuing_concentration_list = issuing_concentration.to_dict(orient='records') if not issuing_concentration.empty else []
+    transaction_concentration_list = transaction_concentration.to_dict(orient='records') if not transaction_concentration.empty else []
     cash_in_list = cash_in.to_dict(orient='records') if not cash_in.empty else []
     cash_out_list = cash_out.to_dict(orient='records') if not cash_out.empty else []
     offense_history_list = offense_history.to_dict(orient='records') if not offense_history.empty else []
-    transaction_concentration_list = transaction_concentration.to_dict(orient='records') if not transaction_concentration.empty else []
     products_online_list = products_online.to_dict(orient='records') if not products_online.empty else []
     contacts_list = contacts.to_dict(orient='records') if not contacts.empty else []
     devices_list = devices.to_dict(orient='records') if not devices.empty else []
 
     merchant_info_dict = convert_decimals(merchant_info_dict)
     issuing_concentration_list = convert_decimals(issuing_concentration_list)
+    transaction_concentration_list = convert_decimals(transaction_concentration_list)
     cash_in_list = convert_decimals(cash_in_list)
     cash_out_list = convert_decimals(cash_out_list)
     offense_history_list = convert_decimals(offense_history_list)
-    transaction_concentration_list = convert_decimals(transaction_concentration_list)
     products_online_list = convert_decimals(products_online_list)
     contacts_list = convert_decimals(contacts_list)
     devices_list = convert_decimals(devices_list)
@@ -263,10 +264,10 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
         "total_cash_in_pix_atypical_hours": total_cash_in_pix_atypical_hours,
         "total_cash_out_pix_atypical_hours": total_cash_out_pix_atypical_hours,
         "issuing_concentration": issuing_concentration_list,
+        "transaction_concentration": transaction_concentration_list,
         "pix_cash_in": cash_in_list,
         "pix_cash_out": cash_out_list,
         "offense_history": offense_history_list,
-        "transaction_concentration": transaction_concentration_list,
         "products_online": products_online_list,
         "contacts": contacts_list,
         "devices": devices_list,
@@ -421,7 +422,6 @@ Tipo de Alerta: {alert_type}
 Informação do {user_type}:
 {user_info_json}
 """
-
     if user_type == 'Merchant':
         transaction_concentration_json = json.dumps(report_data.get('transaction_concentration', []), ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
         products_online_json = json.dumps(report_data.get('products_online', []), ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
@@ -490,28 +490,13 @@ Transações em Horários Atípicos:
 - Cash In PIX: R${report_data['total_cash_in_pix_atypical_hours']:,.2f}
 - Cash Out PIX: R${report_data['total_cash_out_pix_atypical_hours']:,.2f}
 
-
-Concentração de Transações por Portador de Cartão:
-{transaction_concentration_json}
-
-Análise Adicional para Concentração de Transações por Portador de Cartão:
-- Verifique se há transações com valores idênticos ou muito similares (usando card_holder_name, card_number e card_token_id) ocorrendo em intervalos curtos.
-- Utilize os campos total_approved_by_ch e count_approved_transactions para identificar portadores com volume elevado e detectar picos anormais.
-- Analise os valores de total_approved_by_ch_atypical_hours e Percentage_atypica para identificar transações em horários atípicos com padrões suspeitos.
-- Avalie o capture_method para verificar se determinados métodos de captura estão concentrados.
-- Verifique a concentração por emissor (issuer_id e issuer_name) e considere o risco associado ao country do emissor.
-
-
 Concentração de Issuing:
 {issuing_concentration_json}
 
 Análise Adicional para Concentração de Issuing:
 - Verifique se há repetição de merchant_name ou padrões de valores anômalos em total_amount.
-- Utilize os campos total_amount, percentage_of_total, message__card_acceptor_mcc e message__card_acceptor_country_code para identificar picos ou concentrações excessivas.
-- Compare os valores de total_amount com o percentage_of_total para detectar discrepâncias ou padrões incomuns.
-- Caso existam transações repetidas ou com valores atípicos, destaque essas ocorrências e discuta possíveis riscos associados.
-- Avalie se os códigos MCC (message__card_acceptor_mcc) correspondem a setores de alto risco e se o país do adquirente (message__card_acceptor_country_code) aponta para origens que requeiram atenção especial.
-
+- Utilize os campos total_amount e percentage_of_total para identificar picos ou discrepâncias.
+- Considere analisar se os códigos MCC (message__card_acceptor_mcc) indicam setores de risco elevado.
 
 Contatos (Atenção para contatos com status 'blocked'):
 {contacts_json}
@@ -547,6 +532,197 @@ Transações de Apostas via PIX:
 {bets_pix_transfers_json}
 """
 
+    if alert_type == 'betting_houses_alert [BR]' and betting_houses is not None:
+         prompt += f"""
+A primeira frase da sua análise deve ser: "Cliente está transacionando com casas de apostas."
+
+Atenção especial para transações com as casas de apostas abaixo:
+{betting_houses.to_json(orient='records', force_ascii=False, indent=2)}
+
+Para CADA transação em Cash In e Cash Out, você DEVE:
+1. Verificar se o nome da parte ou o CNPJ corresponde a alguma das casas de apostas listadas acima.
+2. Se houver correspondência, calcular:
+   a) A soma total de valores transacionados com essa casa de apostas específica.
+   b) A porcentagem que essa soma representa do valor TOTAL de Cash In ou Cash Out (conforme aplicável).
+
+Na sua análise, descreva:
+- A soma total de Cash In e Cash Out para cada casa de apostas correspondente.
+- A porcentagem que esses valores representam do total de Cash In e Cash Out.
+- Discuta quaisquer padrões ou anomalias observados nessas transações.
+
+Lembre-se: Esta verificação deve ser feita para TODAS as transações, independentemente do tipo de alerta.
+"""
+    elif alert_type == 'Goverment_Corporate_Cards_Alert':
+         prompt += f"""
+A primeira frase da sua análise deve ser: "Cliente está transacionando com cartões corporativos governamentais."
+
+Atenção especial para transações com BINs de cartões de crédito que começam com os seguintes prefixos:
+- 409869
+- 467481
+- 498409
+
+Para CADA transação, você DEVE:
+1. Verificar se o BIN (os primeiros 6 dígitos do número do cartão) corresponde a algum dos prefixos listados acima.
+2. Se houver correspondência, calcular:
+   a) A soma total de valores transacionados com esses BINs específicos.
+   b) A porcentagem que essa soma representa do valor de TPV TOTAL (conforme aplicável).
+
+Na sua análise, descreva:
+- A soma total de valores para cada prefixo BIN correspondente.
+- A porcentagem que esses valores representam do total de Cash In e Cash Out.
+- Discuta quaisquer padrões ou anomalias observados nessas transações.
+
+Lembre-se: Esta verificação deve ser feita para TODAS as transações de cartões de crédito relacionadas a este alerta.
+Se não houver correspondências com os BINs listados, informe explicitamente na sua análise.
+"""
+    elif alert_type == 'ch_alert [BR]':
+         prompt += f"""
+A primeira frase da sua análise deve ser: "Cliente com possíveis anomalias em PIX."
+
+Atenção especial para Transações PIX:
+
+Para CADA transação em Cash In e Cash Out, você DEVE:
+1. Analisar os valores de Cash In e Cash Out para identificar quaisquer anomalias ou padrões suspeitos.
+2. Comparar os valores com transações típicas para determinar se há desvios significativos.
+
+Na sua análise, descreva:
+- Quaisquer transações de Cash In ou Cash Out que apresentam valores anormais.
+- Padrões ou tendências observadas nas transações PIX.
+- Recomendação sobre a necessidade de investigação adicional com base nos achados.
+
+Lembre-se: Esta verificação deve ser feita para TODAS as transações PIX relacionadas a este alerta.
+Se não houver anomalias detectadas, informe explicitamente na sua análise.
+
+Além disso, você deve verificar se o usuário pode ser estrangeiro, quando nome não soar Brasileiro, ou a data de criação do CPF for muito recente.
+"""
+    elif alert_type == 'pix_merchant_alert [BR]':
+         prompt += f"""
+A primeira frase da sua análise deve ser: "Cliente Merchant com possíveis anomalias em PIX Cash In."
+Atenção especial para Transações PIX Cash-In e Cash-Out:
+
+Para CADA transação em Cash In e Cash Out, você DEVE:
+1. Analisar os valores de Cash In para identificar quaisquer anomalias ou padrões suspeitos.
+2. Revisar os valores de Cash Out para detectar valores atípicos ou incomuns.
+
+Na sua análise, descreva:
+- Quaisquer transações de Cash In que apresentam valores anormais.
+- Quaisquer transações de Cash Out que apresentam valores atípicos ou incomuns.
+- Padrões ou tendências observadas nas transações PIX Cash-In e Cash-Out.
+- Recomendação sobre a necessidade de investigação adicional com base nos achados.
+
+Lembre-se: Esta verificação deve ser feita para TODAS as transações PIX relacionadas a este alerta.
+Se não houver anomalias ou valores atípicos detectados, informe explicitamente na sua análise.
+"""
+    elif alert_type == 'International_Cards_Alert':
+         prompt += f"""
+A primeira frase da sua análise deve ser: "Cliente está transacionando com cartões internacionais."
+Atenção especial para Transações com Issuer Não Brasileiro:
+
+Para CADA transação, você DEVE:
+1. Verificar se o nome do emissor (issuer_name) da transação não é de uma instituição financeira brasileira.
+2. Se o emissor não for do Brasil, calcular:
+   a) A soma total de valores transacionados com esse emissor específico.
+   b) A porcentagem que essa soma representa do TPV Total (conforme aplicável).
+
+Na sua análise, descreva:
+- A soma total de valores para cada emissor não brasileiro correspondente.
+- A porcentagem que esses valores representam do TPV total.
+- Discuta quaisquer padrões ou anomalias observados nessas transações.
+
+Lembre-se: Esta verificação deve ser feita para TODAS as transações relacionadas a este alerta.
+Se não houver correspondências com emissores não brasileiros, informe explicitamente na sua análise.
+"""
+    elif alert_type == 'bank_slips_alert [BR]':
+         prompt += f"""
+A primeira frase da sua análise deve ser: "Cliente com possíveis anomalias envolvendo boletos bancários."
+
+Atenção especial para Transações com Método de Captura 'bank_slip':
+
+Para CADA transação, você DEVE:
+1. Verificar se o método de captura (capture_method) da transação é 'bank_slip'.
+2. Se for 'bank_slip', analisar:
+   a) A soma total de valores transacionados com este método.
+   b) A porcentagem que essa soma representa do valor do TPV TOTAL (conforme aplicável).
+
+Na sua análise, descreva:
+- A soma total de valores para transações capturadas via 'bank_slip'.
+- A porcentagem que esses valores representam do TPV total.
+- Discuta quaisquer padrões ou anomalias observados nessas transações.
+
+Lembre-se: Esta verificação deve ser feita para TODAS as transações relacionadas a este alerta.
+Se não houver transações com método de captura 'bank_slip', informe explicitamente na sua análise.
+"""
+    elif alert_type == 'GAFI Alert':
+         prompt += f"""
+A primeira frase da sua análise deve ser: "Cliente está transacionando com países proibidos do GAFI."
+
+Atenção especial para Transações cujo issuer seja emitido em algum dos países abaixo:
+
+'Bulgaria', 'Burkina Faso', 'Cameroon', 'Croatia', 'Haiti', 'Jamaica', 'Kenya', 'Mali', 'Mozambique',
+'Myanmar', 'Namibia', 'Nigeria', 'Philippines', 'Senegal', 'South Africa', 'Tanzania', 'Vietnam', 'Congo, Dem. Rep.',
+'Syrian Arab Republic', 'Turkey', 'Yemen, Rep.', 'Yemen Democratic', 'Iran, Islamic Rep.', 'Korea, Dem. Rep.' ,'Venezuela'
+
+Para CADA transação, você DEVE:
+1. Verificar se o nome do emissor (issuer_name) da transação não é de alguma instituição financeira com oriens em algum dos países acima.
+2. Se positivo, calcular:
+   a) A soma total de valores transacionados com esse emissor específico.
+   b) A porcentagem que essa soma representa do TPV Total (conforme aplicável).
+   c) Nomear o país de origem.
+
+Na sua análise, descreva:
+- A soma total de valores para cada emissor com origens nos países acima, restritos pelo GAFI.
+- A porcentagem que esses valores representam do TPV total.
+- Discuta quaisquer padrões ou anomalias observados nessas transações.
+
+Lembre-se: Esta verificação deve ser feita para TODAS as transações relacionadas a este alerta.
+Se não houver correspondências com emissores não brasileiros, informe explicitamente na sua análise.
+"""
+    elif alert_type == 'pep_pix_alert' and pep_data is not None:
+         prompt += f"""
+A primeira frase da sua análise deve ser: "Cliente transacionando com Pessoas Politicamente Expostas (PEP)."
+
+Atenção especial para as transações identificadas abaixo:
+{pep_data.to_json(orient='records', force_ascii=False, indent=2)}
+
+Você DEVE:
+1. Para cada PEP na lista, informar:
+   - Nome completo do PEP (pep_name)
+   - Documento do PEP (pep_document_number).
+   - Cargo do PEP (job_description).
+   - Órgão de trabalho (agencies).
+   - Soma total dos valores transacionados com cada PEP (DEBIT + CREDIT).
+   - A porcentagem que essa soma representa do total de Cash In e/ou Cash Out transacionado com outros indivíduos.
+2. Analisar se os valores e frequências das transações com PEP são atípicos ou suspeitos.
+
+Na sua análise, descreva:
+- Detalhes das transações com cada PEP identificado.
+- Qualquer padrão ou anomalia observada nessas transações.
+- Recomendações sobre a necessidade de investigação adicional com base nos achados.
+
+Lembre-se: Esta verificação deve ser feita para TODAS as transações de Cash In e Cash Out relacionadas a este alerta.
+"""
+    elif alert_type == 'AI Alert' and features:
+         prompt += f"""
+Atenção especial às anomalias identificadas pelo modelo de AI:
+{features}
+
+Por favor, descreva os padrões ou comportamentos anômalos identificados com base nas características acima.
+Você também deve analisar os demais dados disponíveis, como transações, contatos, dispositivos, issuing, produtos, para confirmar ou ajustar a suspeita de fraude.
+"""
+    elif alert_type == 'Issuing Transactions Alert':
+         prompt += f"""
+A primeira frase da sua análise deve ser: "Cliente está transacionando altos valores via Issuing."
+
+Atenção especial para a tabela de Issuing e as seguintes informações:
+- Coluna total_amount
+- mcc e mcc_description
+- card_acceptor_country_code
+
+Na sua análise, descreva:
+- merchant_name com total_amount e percentage_of_total elevados.
+- Se mcc e mcc_description fazem parte de negócios de alto risco.
+- Se o país em card_acceptor_country_code é considerado um país de alto risco.
+"""
     return prompt
 
 
