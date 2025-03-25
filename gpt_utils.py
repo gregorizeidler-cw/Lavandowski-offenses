@@ -30,9 +30,10 @@ SYSTEM_PROMPT = (
   "Se houver registros de cash out, mas não houver entradas em cash in ou PIX, não conclua automaticamente que se trata de (saída sem origem de recursos). É possível que o valor tenha sido proveniente de outras fontes, como boletos ou transações via adquirência, entre outras."
   "Você DEVE fornecer justificativas detalhadas para todas as suas conclusões, indicando as evidências ou padrões encontrados e como eles se relacionam com potenciais riscos de lavagem de dinheiro. Considere fatores como frequência, valores transacionados e conexões entre partes."
   "IMPORTANTE: Ao final da sua análise, você DEVE classificar o risco de lavagem de dinheiro em uma escala de 1 a 10, onde:"
-  "- 1 a 3: Baixo risco (normalmente resulta em normalização do caso)"
-  "- 4 a 7: Médio risco (requer validação adicional - BV apenas se houver múltiplos fatores de risco combinados)"
-  "- 8 a 10: Alto risco (requer validação adicional urgente - BV)"
+  "- 1 a 3: Baixo risco (Normalizar o caso - cliente apresenta comportamento consistente com o perfil declarado)"
+  "- 4 a 5: Risco médio-baixo (Normalizar o caso, mas registrar observações para monitoramento futuro)"
+  "- 6 a 7: Risco médio-alto (Requer Business Validation - solicitar documentação complementar)"
+  "- 8 a 10: Alto risco (Requer Business Validation urgente e análise aprofundada)"
   "Exemplo: 'Risco de Lavagem de Dinheiro: 6/10'"
 )
 
