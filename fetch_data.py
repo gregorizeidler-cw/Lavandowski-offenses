@@ -74,4 +74,4 @@ FROM all_alerts
 WHERE user_id NOT IN (SELECT user_id FROM excluded_users)
 ORDER BY alert_date DESC;
 
-"""
+""" 
