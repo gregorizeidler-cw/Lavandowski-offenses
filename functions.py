@@ -696,17 +696,36 @@ def format_export_payload(user_id, description, business_validation):
   a partir do texto da análise.
   """
   clean_description = re.sub(r'[#\*\_]', '', description)
-  risk_score = 0
-  risk_score_match = re.search(r'Risco de Lavagem de Dinheiro: (\d+)/10', clean_description)
-  if risk_score_match:
-    risk_score = int(risk_score_match.group(1))
-  if risk_score >= 4:
-    conclusion = "suspicious"
+  
+  # Verifica se há mensagens de erro na descrição
+  error_indicators = [
+    "Não consigo tankar este caso", 
+    "An error occurred",
+    "muitas transações",
+    "context_length_exceeded",
+    "token limit",
+    "chame um analista humano"
+  ]
+  
+  has_error = any(indicator.lower() in clean_description.lower() for indicator in error_indicators)
+  
+  if has_error:
+    # Se houver erro, deixa a conclusão vazia para não enviar nem "suspicious" nem "normal"
+    conclusion = ""
   else:
-    if "normalizar o caso" in clean_description.lower():
-      conclusion = "normal"
-    else:
+    # Processa normalmente quando não há erro
+    risk_score = 0
+    risk_score_match = re.search(r'Risco de Lavagem de Dinheiro: (\d+)/10', clean_description)
+    if risk_score_match:
+      risk_score = int(risk_score_match.group(1))
+    if risk_score >= 4:
       conclusion = "suspicious"
+    else:
+      if "normalizar o caso" in clean_description.lower():
+        conclusion = "normal"
+      else:
+        conclusion = "suspicious"
+  
   payload = {
     "user_id": user_id,
     "description": clean_description,
