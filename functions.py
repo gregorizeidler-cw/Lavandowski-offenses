@@ -483,7 +483,7 @@ Na sua análise, descreva:
 
 Lembre-se: Esta verificação deve ser feita para TODAS as transações, independentemente do tipo de alerta.
 """
-  elif alert_type == 'goverment_corporate_cards_alert [BR]':
+  elif alert_type == 'Goverment_Corporate_Cards_Alert':
     prompt += f"""
 A primeira frase da sua análise deve ser: "Cliente está transacionando com cartões corporativos governamentais."
 
@@ -608,7 +608,7 @@ Na sua análise, descreva:
 Lembre-se: Esta verificação deve ser feita para TODAS as transações relacionadas a este alerta.
 Se não houver correspondências com emissores não brasileiros, informe explicitamente na sua análise.
 """
-  elif alert_type == 'pep_pix_alert [BR]' and pep_data is not None:
+  elif alert_type == 'Pep_Pix Alert' and pep_data is not None:
     prompt += f"""
 A primeira frase da sua análise deve ser: "Cliente transacionando com Pessoas Politicamente Expostas (PEP)."
 
@@ -713,7 +713,6 @@ def format_export_payload(user_id, description, business_validation):
     # Se houver erro, deixa a conclusão vazia para não enviar nem "suspicious" nem "normal"
     conclusion = ""
   else:
-    # Processa normalmente quando não há erro
     risk_score = 0
     risk_score_match = re.search(r'Risco de Lavagem de Dinheiro: (\d+)/10', clean_description)
     if risk_score_match:
