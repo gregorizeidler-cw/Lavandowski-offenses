@@ -232,14 +232,6 @@ st.markdown("""
       box-shadow: 0 3px 7px rgba(231, 76, 60, 0.5);
       transform: translateY(-1px);
   }
-  .risk-badge-error {
-      background-color: #9e2a2b;
-      color: white;
-      font-weight: 500;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.9rem;
-  }
   .stAlert {
       background-color: var(--bg-secondary);
       border: 1px solid var(--border-color);
@@ -446,9 +438,6 @@ st.markdown("""
       font-size: 0.9rem;
       font-weight: 500;
   }
-  .box-shadow {
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
-  }
 </style>
 """, unsafe_allow_html=True)
 
@@ -456,10 +445,6 @@ load_dotenv()
 USER_ID = os.getenv("USER_ID")
 
 def send_payload(payload, key_master):
-    # Se a conclusão estiver vazia, não envia para a API
-    if not payload.get('conclusion'):
-        return "Análise não enviada à API devido a erro no processamento. Verificação manual necessária."
-    
     url = "https://infinitepay-risk-api.services.production.cloudwalk.network/monitoring/offense_analysis"
     headers = {"Content-Type": "application/json", "Authorization": key_master}
     response = requests.post(url, headers=headers, json=payload)
@@ -577,7 +562,6 @@ def run_bot():
         status_container = st.empty()
     analyzed_count = 0
     suspicious_count = 0
-    error_count = 0
     risk_scores = []
     start_time = datetime.datetime.now()
     for i, user_data in enumerate(flagged_users):
@@ -594,21 +578,13 @@ def run_bot():
                 """, unsafe_allow_html=True)
             pep_data = fetch_pep_data(user_data['user_id'])
             export_payload = analyze_user(user_data, betting_houses=betting_houses, pep_data=pep_data)
-            
-            # Verifica se a conclusão está presente
-            conclusion_exists = 'conclusion' in export_payload and export_payload['conclusion']
-            if not conclusion_exists:
-                error_count += 1
-            
             response_text = send_payload(export_payload, key_master)
             description = export_payload.get('description', '')
             risk_score_match = re.search(r'Risco de Lavagem de Dinheiro: (\d+)/10', description)
             risk_score = int(risk_score_match.group(1)) if risk_score_match else 0
             risk_scores.append(risk_score)
-            
-            if conclusion_exists and export_payload['conclusion'] == 'suspicious':
+            if export_payload['conclusion'] == 'suspicious':
                 suspicious_count += 1
-                
             if risk_score <= 3:
                 risk_level = "Baixo"
                 risk_badge = "risk-badge-low"
@@ -618,14 +594,8 @@ def run_bot():
             else:
                 risk_level = "Alto"
                 risk_badge = "risk-badge-high"
-                
-            if not conclusion_exists:
-                conclusion = 'Erro na Análise'
-                conclusion_badge = "risk-badge-error"
-            else:
-                conclusion = 'Suspeito' if export_payload['conclusion'] == 'suspicious' else 'Normal'
-                conclusion_badge = "risk-badge-high" if conclusion == "Suspeito" else "risk-badge-low"
-                
+            conclusion = 'Suspeito' if export_payload['conclusion'] == 'suspicious' else 'Normal'
+            conclusion_badge = "risk-badge-high" if conclusion == "Suspeito" else "risk-badge-low"
             user_type = "👤 Cardholder" if "cardholder_info" in str(export_payload) else "🏪 Merchant"
             with st.expander(f"User ID: {user_data['user_id']} - {user_type} - Score: {risk_score}/10", expanded=False):
                 st.markdown(f"""
@@ -687,11 +657,10 @@ def run_bot():
     total_time = (end_time - start_time).total_seconds()
     avg_time = total_time / total_users if total_users > 0 else 0
     avg_score = sum(risk_scores) / len(risk_scores) if risk_scores else 0
-    
     st.markdown(f"""
     <div style="background-color: var(--bg-secondary); padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid var(--success-color);">
         <h2 style="margin-top: 0; color: var(--text-primary);">🎉 Análise completa!</h2>
-        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; margin-top: 15px;">
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 15px;">
             <div style="background-color: var(--bg-card); padding: 15px; border-radius: 6px; text-align: center;">
                 <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">Usuários Analisados</p>
                 <p style="font-size: 1.8rem; margin: 5px 0; font-weight: bold; color: var(--text-primary);">{analyzed_count}</p>
@@ -699,10 +668,6 @@ def run_bot():
             <div style="background-color: var(--bg-card); padding: 15px; border-radius: 6px; text-align: center;">
                 <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">Casos Suspeitos</p>
                 <p style="font-size: 1.8rem; margin: 5px 0; font-weight: bold; color: var(--danger-color);">{suspicious_count}</p>
-            </div>
-            <div style="background-color: var(--bg-card); padding: 15px; border-radius: 6px; text-align: center;">
-                <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">Erros de Análise</p>
-                <p style="font-size: 1.8rem; margin: 5px 0; font-weight: bold; color: #9e2a2b;">{error_count}</p>
             </div>
             <div style="background-color: var(--bg-card); padding: 15px; border-radius: 6px; text-align: center;">
                 <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">Score Médio</p>
