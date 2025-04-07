@@ -321,14 +321,3 @@ def get_analysis_and_decision(prompt):
 # case_data = "Dados do caso: [insira os dados do caso aqui]"
 # resultado = get_analysis_and_decision(case_data)
 # print(resultado)
-
-
-
-
-
-
-
-
-
-
-
