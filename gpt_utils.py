@@ -32,7 +32,7 @@ SYSTEM_PROMPT = (
   "Você DEVE fornecer justificativas detalhadas para todas as suas conclusões, indicando as evidências ou padrões encontrados e como eles se relacionam com potenciais riscos de lavagem de dinheiro. Considere fatores como frequência, valores transacionados e conexões entre partes."
   "IMPORTANTE: Ao final da sua análise, você DEVE classificar o risco de lavagem de dinheiro em uma escala de 1 a 10, onde:"
   "- 1 a 4: Baixo risco (resulta em normalização do caso)"
-  "- 5 a 6: Médio risco (resulta em normalização com monitoramento continuo - BV)"
+  "- 5 a 6: Médio risco (resulta em normalização com monitoramento contínuo - BV)"
   "- 7 a 9: Alto risco (requer validação adicional urgente - BV)"
   "- 10: Risco extremo (requer descredenciamento e reporte ao COAF)"
   "Exemplo: 'Risco de Lavagem de Dinheiro: 6/10'"
@@ -293,7 +293,8 @@ def get_analysis_and_decision(prompt):
       # Se não estiver, solicita ao GPT para adicionar um score de risco
       score_prompt = (
           "Com base na análise a seguir, classifique o risco de lavagem de dinheiro em uma escala de 1 a 10, "
-          "onde 1-3 é baixo risco, 4-7 é médio risco, e 8-10 é alto risco.\n\n"
+          "onde 1-4 é baixo risco (normalização do caso), 5-6 é médio risco (normalização com monitoramento contínuo - BV), "
+          "7-9 é alto risco (requer validação adicional urgente - BV), e 10 é risco extremo (requer descredenciamento e reporte ao COAF).\n\n"
           f"{analysis}\n\n"
           "Responda apenas com: Risco de Lavagem de Dinheiro: [número]/10"
       )
