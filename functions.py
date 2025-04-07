@@ -659,8 +659,9 @@ Na sua análise, descreva:
 Importante - Ao final da sua análise, você DEVE incluir uma classificação de risco de lavagem de dinheiro em uma escala de 1 a 10, seguindo estas diretrizes:
 
 - 1 a 3: Baixo risco (caso normal, não exige ação adicional)
-- 4 a 7: Médio risco (requer Business Validation - BV)
-- 8 a 10: Alto risco (requer Business Validation urgente - BV)
+- 4 a 6: Médio risco (caso normal com aviso de monitoramento)
+- 8 a 9: Alto risco (requer Business Validation urgente - BV)
+- 10: Risco extremo (requer Business Validation urgente e imediata - BV)
 
 Fatores para considerar na classificação de risco:
 - Volume e frequência de transações
