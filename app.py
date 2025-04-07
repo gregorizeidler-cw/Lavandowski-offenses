@@ -588,14 +588,30 @@ def run_bot():
             if risk_score <= 3:
                 risk_level = "Baixo"
                 risk_badge = "risk-badge-low"
-            elif risk_score <= 7:
+            elif risk_score <= 6:
                 risk_level = "Médio"
                 risk_badge = "risk-badge-medium"
             else:
                 risk_level = "Alto"
                 risk_badge = "risk-badge-high"
-            conclusion = 'Suspeito' if export_payload['conclusion'] == 'suspicious' else 'Normal'
-            conclusion_badge = "risk-badge-high" if conclusion == "Suspeito" else "risk-badge-low"
+            
+            # Lógica atualizada para mostrar o tipo de conclusão
+            if export_payload['conclusion'] == 'normal':
+                conclusion = 'Normal'
+                conclusion_badge = "risk-badge-low"
+                if "Caso de médio risco" in export_payload.get('description', ''):
+                    conclusion = 'Normal (monitorar)'
+                    conclusion_badge = "risk-badge-medium"
+            elif export_payload['conclusion'] == 'suspicious':
+                conclusion = 'Suspicious'
+                conclusion_badge = "risk-badge-high"
+            elif export_payload['conclusion'] == 'offense':
+                conclusion = 'Offense'
+                conclusion_badge = "risk-badge-high"
+            else:
+                conclusion = 'Indefinido'
+                conclusion_badge = "risk-badge-medium"
+            
             user_type = "👤 Cardholder" if "cardholder_info" in str(export_payload) else "🏪 Merchant"
             with st.expander(f"User ID: {user_data['user_id']} - {user_type} - Score: {risk_score}/10", expanded=False):
                 st.markdown(f"""
@@ -721,11 +737,11 @@ def main():
         <div style="background-color: var(--bg-secondary); padding: 15px; border-radius: 10px; margin: 10px 0; box-shadow: var(--shadow);">
             <p style="margin: 0 0 12px 0; font-weight: 500;">Escala de Risco (1-10):</p>
             <div style="display: flex; gap: 8px; flex-direction: column;">
-                <div><span class='risk-badge-low'>1-3: Baixo Risco</span></div>
-                <div><span class='risk-badge-medium'>4-7: Médio Risco</span></div>
-                <div><span class='risk-badge-high'>8-10: Alto Risco</span></div>
+                <div><span class='risk-badge-low'>1-4: Baixo Risco</span></div>
+                <div><span class='risk-badge-medium'>5-6: Médio Risco</span></div>
+                <div><span class='risk-badge-high'>7-9: Alto Risco</span></div>
+                <div><span class='risk-badge-high' style="background-color: #d32f2f;">10: Risco Extremo</span></div>
             </div>
-            <p style="margin: 12px 0 0 0; font-size: 0.85rem; color: var(--text-secondary);">Score ≥ 4 = Classificado como "suspeito"</p>
         </div>
         """, unsafe_allow_html=True)
     st.markdown("<h1 class='main-header'>🔍 Lavandowski AML Analysis</h1>", unsafe_allow_html=True)
