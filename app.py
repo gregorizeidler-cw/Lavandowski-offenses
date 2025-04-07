@@ -585,14 +585,17 @@ def run_bot():
             risk_scores.append(risk_score)
             if export_payload['conclusion'] == 'suspicious':
                 suspicious_count += 1
-            if risk_score <= 3:
-                risk_level = "Baixo"
+            if risk_score <= 4:
+                risk_level = "Baixo Risco"
                 risk_badge = "risk-badge-low"
             elif risk_score <= 6:
-                risk_level = "Médio"
+                risk_level = "Médio Risco"
                 risk_badge = "risk-badge-medium"
+            elif risk_score <= 9:
+                risk_level = "Alto Risco"
+                risk_badge = "risk-badge-high"
             else:
-                risk_level = "Alto"
+                risk_level = "Risco Extremo"
                 risk_badge = "risk-badge-high"
             
             # Lógica atualizada para mostrar o tipo de conclusão
