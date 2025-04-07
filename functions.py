@@ -717,13 +717,27 @@ def format_export_payload(user_id, description, business_validation):
     risk_score_match = re.search(r'Risco de Lavagem de Dinheiro: (\d+)/10', clean_description)
     if risk_score_match:
       risk_score = int(risk_score_match.group(1))
-    if risk_score >= 4:
+    
+    # Nova lógica de classificação baseada no score
+    if risk_score <= 4:
+      # Baixo risco (1-4): normal
+      conclusion = "normal"
+    elif risk_score <= 6:
+      # Médio risco (5-6): normal com aviso
+      conclusion = "normal"
+      # Adicionar texto de aviso ao final da descrição
+      if not "Caso de médio risco" in clean_description:
+        clean_description += "\n\nOBS: Caso de médio risco que deve ser monitorado."
+    elif risk_score <= 9:
+      # Alto risco (7-9): suspicious
       conclusion = "suspicious"
     else:
-      if "normalizar o caso" in clean_description.lower():
-        conclusion = "normal"
-      else:
-        conclusion = "suspicious"
+      # Risco extremo (10): offense
+      conclusion = "offense"
+    
+    # Se explicitamente mencionar normalizar o caso, mantem como normal
+    if "normalizar o caso" in clean_description.lower() and conclusion != "offense":
+      conclusion = "normal"
   
   payload = {
     "user_id": user_id,
