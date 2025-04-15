@@ -107,8 +107,20 @@ def fetch_prison_transactions(user_id: int) -> pd.DataFrame:
 def fetch_bets_pix_transfers(user_id: int) -> pd.DataFrame:
   """Busca transações de apostas via PIX para o user_id informado."""
   query = f"""
-  SELECT * FROM `infinitepay-production.metrics_amlft.bets_pix_transfers`
-  WHERE user_id = {user_id}
+  SELECT
+  transfer_type,
+  pix_status,
+  user_id,
+  user_name,
+  gateway,
+  gateway_document_number,
+  gateway_pix_key,
+  gateway_name,
+  SUM(transfer_amount) total_amount,
+  COUNT(pix_transfer_id) count_transactions
+FROM `infinitepay-production.metrics_amlft.bets_pix_transfers`
+WHERE user_id = {user_id}
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
   """
   return execute_query(query)
 
