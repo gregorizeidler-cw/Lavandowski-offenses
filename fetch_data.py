@@ -9,15 +9,17 @@ WITH excluded_users AS (
           (a.conclusion = 'normal' AND a.priority IN ('low', 'mid', 'high'))
           OR
           (a.conclusion = 'suspicious' AND a.priority IN ('mid', 'high'))
+          OR
+          (a.conclusion = 'offense' AND a.priority IN ('mid', 'high'))
         )
-    AND a.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 5 DAY)
+    AND a.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 15 DAY)
     AND a.automatic_pipeline = true
 ),
 traditional_alerts AS (
-  SELECT 
+  SELECT
     DISTINCT an.user_id,
     FORMAT_TIMESTAMP('%d-%m-%Y', an.created_at) AS alert_date,
-    CASE 
+    CASE
       WHEN an.analyst_id = 8423054 THEN 'CH Alert'
       WHEN an.analyst_id = 8832903 THEN 'Pep_Pix Alert'
       WHEN an.analyst_id = 15858378 THEN 'GAFI Alert'
@@ -29,6 +31,7 @@ traditional_alerts AS (
       WHEN an.analyst_id = 25071066 THEN 'GAFI Alert [US]'
       WHEN an.analyst_id = 25261377 THEN 'international_cards_alert [US]'
       WHEN an.analyst_id = 24954170 THEN 'ted_transfers_alert'
+       WHEN an.analyst_id = 34623430 THEN 'Pf_Merchant_Pix Alert'
       WHEN an.analyst_id = 25769012 THEN 'Issuing Transactions Alert'
       WHEN an.analyst_id = 27951634 THEN 'Foreigners_Alert'
       WHEN an.analyst_id = 28279057 THEN 'acquiring_jim_us_alert [US]'
@@ -48,9 +51,10 @@ traditional_alerts AS (
     8423054, 8832903, 15858378, 16368511, 18758930,
     19897830, 20583019, 20698248, 25071066, 25261377,
     24954170, 25769012, 27951634, 28279057, 28320827,
-    29865856, 29842685, 30046553, 29840096
+    29865856, 29842685, 30046553, 29840096,34623430
+
   )
-    AND an.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY)
+    AND an.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 12 DAY)
 ),
 ai_alerts AS (
   SELECT
@@ -60,7 +64,7 @@ ai_alerts AS (
     score,
     features
   FROM `ai-services-sae.aml_model.predictions`
-  WHERE timestamp >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY)
+  WHERE timestamp >= DATE_SUB(CURRENT_DATE(), INTERVAL 12 DAY)
     AND label = 1
 ),
 all_alerts AS (
