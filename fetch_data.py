@@ -31,7 +31,7 @@ traditional_alerts AS (
       WHEN an.analyst_id = 25071066 THEN 'GAFI Alert [US]'
       WHEN an.analyst_id = 25261377 THEN 'international_cards_alert [US]'
       WHEN an.analyst_id = 24954170 THEN 'ted_transfers_alert'
-       WHEN an.analyst_id = 34623430 THEN 'Pf_Merchant_Pix Alert'
+       WHEN an.analyst_id = 34767121 THEN 'Pf_Merchant_Pix Alert'
       WHEN an.analyst_id = 25769012 THEN 'Issuing Transactions Alert'
       WHEN an.analyst_id = 27951634 THEN 'Foreigners_Alert'
       WHEN an.analyst_id = 28279057 THEN 'acquiring_jim_us_alert [US]'
@@ -51,7 +51,7 @@ traditional_alerts AS (
     8423054, 8832903, 15858378, 16368511, 18758930,
     19897830, 20583019, 20698248, 25071066, 25261377,
     24954170, 25769012, 27951634, 28279057, 28320827,
-    29865856, 29842685, 30046553, 29840096,34623430
+    29865856, 29842685, 30046553, 29840096,34767121
 
   )
     AND an.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 12 DAY)
