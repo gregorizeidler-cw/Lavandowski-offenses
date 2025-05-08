@@ -1,16 +1,15 @@
+
 import datetime
 import pandas as pd
-from google.cloud import bigquery
-from gpt_utils import get_chatgpt_response
+from app.gpt_utils import get_chatgpt_response
 import json
 import decimal
 import logging
-import os
 import re
-import streamlit as st
-from dotenv import load_dotenv
-load_dotenv()
-logging.basicConfig(level=logging.ERROR)
+from app.settings.bigquery import GCBigquery
+from app.settings.logger import get_logger
+
+logger = get_logger(__name__)
 
 class CustomJSONEncoder(json.JSONEncoder):
   def default(self, obj):
@@ -24,10 +23,6 @@ class CustomJSONEncoder(json.JSONEncoder):
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', 40)
 pd.set_option('display.min_rows', 40)
-
-project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
-location = os.getenv("LOCATION")
-client = bigquery.Client(project=project_id, location=location)
 
 def format_date_portuguese(date_str: str) -> str:
   """Formata uma string de data para o formato em português."""
@@ -48,17 +43,16 @@ def format_cpf(cpf: str) -> str:
   else:
     return cpf
 
-@st.cache_data(ttl=600)  # Cache for 10 minutes
 def execute_query(query):
   """Executa uma query no BigQuery e retorna um DataFrame."""
   try:
-    df = client.query(query).result().to_dataframe()
-    return df
+    bigquery_client = GCBigquery()
+    query_result = bigquery_client.query(query)
+    return query_result
   except Exception as e:
     logging.error(f"Error executing query: {e}")
-    return pd.DataFrame()
+    return None
 
-@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_lawsuit_data(user_id: int) -> pd.DataFrame:
   """Busca dados de processos para o user_id informado."""
   query = f"""
@@ -67,7 +61,6 @@ def fetch_lawsuit_data(user_id: int) -> pd.DataFrame:
   """
   return execute_query(query)
 
-@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_business_data(user_id: int) -> pd.DataFrame:
   """Busca dados de relacionamento empresarial para o user_id informado."""
   query = f"""
@@ -76,7 +69,6 @@ def fetch_business_data(user_id: int) -> pd.DataFrame:
   """
   return execute_query(query)
 
-@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_sanctions_history(user_id: int) -> pd.DataFrame:
   """Busca dados de sanções para o user_id informado."""
   query = f"""
@@ -85,7 +77,6 @@ def fetch_sanctions_history(user_id: int) -> pd.DataFrame:
   """
   return execute_query(query)
 
-@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_denied_transactions(user_id: int) -> pd.DataFrame:
   """Busca transações negadas para o user_id (merchant_id)."""
   query = f"""
@@ -94,7 +85,6 @@ def fetch_denied_transactions(user_id: int) -> pd.DataFrame:
   """
   return execute_query(query)
 
-@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_denied_pix_transactions(user_id: int) -> pd.DataFrame:
   """Busca transações PIX negadas para o user_id."""
   query = f"""
@@ -103,7 +93,6 @@ def fetch_denied_pix_transactions(user_id: int) -> pd.DataFrame:
   """
   return execute_query(query)
 
-@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_prison_transactions(user_id: int) -> pd.DataFrame:
   """Busca transações no presídio para o user_id informado."""
   query = f"""
@@ -112,24 +101,23 @@ def fetch_prison_transactions(user_id: int) -> pd.DataFrame:
   """
   return execute_query(query)
 
-@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_bets_pix_transfers(user_id: int) -> pd.DataFrame:
   """Busca transações de apostas via PIX para o user_id informado."""
   query = f"""
   SELECT
-  transfer_type,
-  pix_status,
-  user_id,
-  user_name,
-  gateway,
-  gateway_document_number,
-  gateway_pix_key,
-  gateway_name,
-  SUM(transfer_amount) total_amount,
-  COUNT(pix_transfer_id) count_transactions
-FROM `infinitepay-production.metrics_amlft.bets_pix_transfers`
-WHERE user_id = {user_id}
-GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+    transfer_type,
+    pix_status,
+    user_id,
+    user_name,
+    gateway,
+    gateway_document_number,
+    gateway_pix_key,
+    gateway_name,
+    SUM(transfer_amount) total_amount,
+    COUNT(pix_transfer_id) count_transactions
+  FROM `infinitepay-production.metrics_amlft.bets_pix_transfers`
+  WHERE user_id = {user_id}
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
   """
   return execute_query(query)
 
@@ -142,8 +130,7 @@ def convert_decimals(data):
   else:
     return data
 
-@st.cache_data(ttl=1800)  # Cache for 30 minutes
-def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
+def merchant_report(user_id: int, alert_type=None, pep_data=None) -> dict:
   """Gera um relatório para merchant."""
   query_merchants = f"""
   SELECT * FROM metrics_amlft.merchant_report WHERE user_id = {user_id} LIMIT 1
@@ -255,7 +242,6 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
   }
   return report
 
-@st.cache_data(ttl=1800)  # Cache for 30 minutes
 def cardholder_report(user_id: int, alert_type: str, pep_data=None) -> dict:
   """Gera um relatório para cardholders."""
   query_cardholders = f"""
@@ -347,7 +333,7 @@ def cardholder_report(user_id: int, alert_type: str, pep_data=None) -> dict:
   }
   return report
 
-def generate_prompt(report_data: dict, user_type: str, alert_type: str, betting_houses: pd.DataFrame = None, pep_data: pd.DataFrame = None, features: str = None) -> str:
+def generate_prompt(report_data: dict, user_type: str, alert_type: str, betting_houses: pd.DataFrame = None, pep_data: pd.DataFrame = None, features: str = None, customer_response: str = None) -> str:
   """Gera o prompt para o GPT com base no relatório."""
   import json
   user_info_key = f"{user_type.lower()}_info"
@@ -486,7 +472,7 @@ Histórico de Offenses:
 Transações de Apostas via PIX:
 {bets_pix_transfers_json}
 """
-  if alert_type == 'betting_houses_alert' and betting_houses is not None:
+  if alert_type == 'betting_houses_alert [BR]' and betting_houses is not None:
     prompt += f"""
 A primeira frase da sua análise deve ser: "Cliente está transacionando com casas de apostas."
 
@@ -742,30 +728,22 @@ def format_export_payload(user_id, description, business_validation):
     if risk_score_match:
       risk_score = int(risk_score_match.group(1))
     
-    # Nova lógica de classificação baseada no score atualizada
-    if risk_score <= 5:
-      # Baixo risco (1-5): normal
+    # Nova lógica de classificação baseada no score
+    if risk_score <= 4:
+      # Baixo risco (1-4): normal
       conclusion = "normal"
-      priority = "high"
-    elif risk_score == 6:
-      # Médio risco (6): normal com aviso
+    elif risk_score <= 6:
+      # Médio risco (5-6): normal com aviso
       conclusion = "normal"
-      priority = "high"
       # Adicionar texto de aviso ao final da descrição
       if not "Caso de médio risco" in clean_description:
         clean_description += "\n\nOBS: Caso de médio risco que deve ser monitorado."
-    elif risk_score <= 8:
-      # Risco moderado (7-8): suspicious mid
+    elif risk_score <= 9:
+      # Alto risco (7-9): suspicious
       conclusion = "suspicious"
-      priority = "mid"
-    elif risk_score == 9:
-      # Alto risco (9): suspicious high
-      conclusion = "suspicious"
-      priority = "high"
     else:
-      # Risco extremo (10): offense high
+      # Risco extremo (10): offense
       conclusion = "offense"
-      priority = "high"
     
     # Se explicitamente mencionar normalizar o caso, mantem como normal
     if "normalizar o caso" in clean_description.lower() and conclusion != "offense":
@@ -776,15 +754,10 @@ def format_export_payload(user_id, description, business_validation):
     "description": clean_description,
     "analysis_type": "manual",
     "conclusion": conclusion,
-    "priority": "high",  # Mantém priority high por padrão se não foi setado acima
+    "priority": "high",
     "automatic_pipeline": True,
     "offense_group": "illegal_activity",
     "offense_name": "money_laundering",
     "related_analyses": []
   }
-  
-  # Atualiza a prioridade se foi definida acima
-  if 'priority' in locals():
-    payload["priority"] = priority
-    
   return payload
