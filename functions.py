@@ -1,15 +1,15 @@
-
 import datetime
 import pandas as pd
-from app.gpt_utils import get_chatgpt_response
+from google.cloud import bigquery
+from gpt_utils import get_chatgpt_response
 import json
 import decimal
 import logging
+import os
 import re
-from app.settings.bigquery import GCBigquery
-from app.settings.logger import get_logger
-
-logger = get_logger(__name__)
+from dotenv import load_dotenv
+load_dotenv()
+logging.basicConfig(level=logging.ERROR)
 
 class CustomJSONEncoder(json.JSONEncoder):
   def default(self, obj):
@@ -23,6 +23,10 @@ class CustomJSONEncoder(json.JSONEncoder):
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', 40)
 pd.set_option('display.min_rows', 40)
+
+project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+location = os.getenv("LOCATION")
+client = bigquery.Client(project=project_id, location=location)
 
 def format_date_portuguese(date_str: str) -> str:
   """Formata uma string de data para o formato em português."""
@@ -46,12 +50,11 @@ def format_cpf(cpf: str) -> str:
 def execute_query(query):
   """Executa uma query no BigQuery e retorna um DataFrame."""
   try:
-    bigquery_client = GCBigquery()
-    query_result = bigquery_client.query(query)
-    return query_result
+    df = client.query(query).result().to_dataframe()
+    return df
   except Exception as e:
     logging.error(f"Error executing query: {e}")
-    return None
+    return pd.DataFrame()
 
 def fetch_lawsuit_data(user_id: int) -> pd.DataFrame:
   """Busca dados de processos para o user_id informado."""
@@ -104,20 +107,8 @@ def fetch_prison_transactions(user_id: int) -> pd.DataFrame:
 def fetch_bets_pix_transfers(user_id: int) -> pd.DataFrame:
   """Busca transações de apostas via PIX para o user_id informado."""
   query = f"""
-  SELECT
-    transfer_type,
-    pix_status,
-    user_id,
-    user_name,
-    gateway,
-    gateway_document_number,
-    gateway_pix_key,
-    gateway_name,
-    SUM(transfer_amount) total_amount,
-    COUNT(pix_transfer_id) count_transactions
-  FROM `infinitepay-production.metrics_amlft.bets_pix_transfers`
+  SELECT * FROM `infinitepay-production.metrics_amlft.bets_pix_transfers`
   WHERE user_id = {user_id}
-  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
   """
   return execute_query(query)
 
@@ -130,7 +121,7 @@ def convert_decimals(data):
   else:
     return data
 
-def merchant_report(user_id: int, alert_type=None, pep_data=None) -> dict:
+def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
   """Gera um relatório para merchant."""
   query_merchants = f"""
   SELECT * FROM metrics_amlft.merchant_report WHERE user_id = {user_id} LIMIT 1
@@ -333,7 +324,7 @@ def cardholder_report(user_id: int, alert_type: str, pep_data=None) -> dict:
   }
   return report
 
-def generate_prompt(report_data: dict, user_type: str, alert_type: str, betting_houses: pd.DataFrame = None, pep_data: pd.DataFrame = None, features: str = None, customer_response: str = None) -> str:
+def generate_prompt(report_data: dict, user_type: str, alert_type: str, betting_houses: pd.DataFrame = None, pep_data: pd.DataFrame = None, features: str = None) -> str:
   """Gera o prompt para o GPT com base no relatório."""
   import json
   user_info_key = f"{user_type.lower()}_info"
