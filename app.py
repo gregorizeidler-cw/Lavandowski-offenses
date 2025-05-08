@@ -585,12 +585,15 @@ def run_bot():
             risk_scores.append(risk_score)
             if export_payload['conclusion'] == 'suspicious':
                 suspicious_count += 1
-            if risk_score <= 4:
+            if risk_score <= 5:
                 risk_level = "Baixo Risco"
                 risk_badge = "risk-badge-low"
             elif risk_score <= 6:
                 risk_level = "Médio Risco"
                 risk_badge = "risk-badge-medium"
+            elif risk_score <= 8:
+                risk_level = "Médio-Alto Risco"
+                risk_badge = "risk-badge-high"
             elif risk_score <= 9:
                 risk_level = "Alto Risco"
                 risk_badge = "risk-badge-high"
@@ -606,10 +609,14 @@ def run_bot():
                     conclusion = 'Normal (monitorar)'
                     conclusion_badge = "risk-badge-medium"
             elif export_payload['conclusion'] == 'suspicious':
-                conclusion = 'Suspicious'
-                conclusion_badge = "risk-badge-high"
+                if "suspicious mid" in export_payload.get('description', ''):
+                    conclusion = 'Suspicious Mid'
+                    conclusion_badge = "risk-badge-high"
+                else:
+                    conclusion = 'Suspicious High'
+                    conclusion_badge = "risk-badge-high"
             elif export_payload['conclusion'] == 'offense':
-                conclusion = 'Offense'
+                conclusion = 'Offense High'
                 conclusion_badge = "risk-badge-high"
             else:
                 conclusion = 'Indefinido'
@@ -740,10 +747,11 @@ def main():
         <div style="background-color: var(--bg-secondary); padding: 15px; border-radius: 10px; margin: 10px 0; box-shadow: var(--shadow);">
             <p style="margin: 0 0 12px 0; font-weight: 500;">Escala de Risco (1-10):</p>
             <div style="display: flex; gap: 8px; flex-direction: column;">
-                <div><span class='risk-badge-low'>1-4: Baixo Risco</span></div>
-                <div><span class='risk-badge-medium'>5-6: Médio Risco</span></div>
-                <div><span class='risk-badge-high'>7-9: Alto Risco</span></div>
-                <div><span class='risk-badge-high' style="background-color: #d32f2f;">10: Risco Extremo</span></div>
+                <div><span class='risk-badge-low'>1-5: Baixo Risco (Normal)</span></div>
+                <div><span class='risk-badge-medium'>6: Médio Risco (Normal com monitoramento)</span></div>
+                <div><span class='risk-badge-high'>7-8: Médio-Alto Risco (Suspicious Mid)</span></div>
+                <div><span class='risk-badge-high'>9: Alto Risco (Suspicious High)</span></div>
+                <div><span class='risk-badge-high' style="background-color: #d32f2f;">10: Risco Extremo (Offense High)</span></div>
             </div>
         </div>
         """, unsafe_allow_html=True)
