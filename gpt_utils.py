@@ -293,9 +293,9 @@ def get_analysis_and_decision(prompt):
   if "Risco de Lavagem de Dinheiro:" not in analysis:
       # Se não estiver, solicita ao GPT para adicionar um score de risco
       score_prompt = (
-          "Com base na análise a seguir, classifique o risco de lavagem de dinheiro em uma escala de 1 a 10, "
-          "onde 1-5 é baixo risco (Normal - não exige ação adicional), 6 é médio risco (Normal com aviso de monitoramento), "
-          "7-8 é médio-alto risco (Suspicious Mid - requer verificação), 9 é alto risco (Suspicious High - requer Business Validation urgente - BV), e 10 é risco extremo (Offense High - requer descredenciamento e reporte ao COAF).\n\n"
+              "Com base na análise a seguir, classifique o risco de lavagem de dinheiro em uma escala de 1 a 10, "
+          "onde 1-5 é baixo risco (normalização do caso), 6 é médio risco (normalização com monitoramento contínuo), "
+          "7-8 é risco moderado (Suspicious Mid - requer validação adicional), 9 é alto risco (Suspicious High - requer validação adicional urgente), e 10 é risco extremo (Offense High - requer descredenciamento e reporte ao COAF).\n\n"
           f"{analysis}\n\n"
           "Responda apenas com: Risco de Lavagem de Dinheiro: [número]/10"
       )
