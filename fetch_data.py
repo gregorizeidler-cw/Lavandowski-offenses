@@ -48,7 +48,7 @@ traditional_alerts AS (
   JOIN `infinitepay-production.maindb.offenses` o ON o.id = an.offense_id
   LEFT JOIN `infinitepay-production.maindb.offense_actions` act ON act.offense_analysis_id = an.id
   WHERE an.analyst_id IN (
-    8423054, 8832903, 15858378, 16368511, 18758930,
+    8423054, 8832903, 15858378,18758930,
     19897830, 20583019, 20698248, 25071066, 25261377,
     24954170, 25769012, 27951634, 28279057, 28320827,
     29865856, 29842685, 30046553, 29840096,34767121
