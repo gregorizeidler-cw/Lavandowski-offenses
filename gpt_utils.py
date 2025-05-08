@@ -1,9 +1,21 @@
-
+import os
+from dotenv import load_dotenv
 from openai import OpenAI
-from app.settings.keys import OPENAI_API_KEY
+
+
+
+
+# Carrega as variáveis de ambiente
+load_dotenv()
+
+
+
 
 # Inicializa o cliente OpenAI
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+
+
 
 # Prompt do sistema (mantido exatamente conforme solicitado)
 SYSTEM_PROMPT = (
