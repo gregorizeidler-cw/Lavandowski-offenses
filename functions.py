@@ -7,6 +7,7 @@ import decimal
 import logging
 import os
 import re
+import streamlit as st
 from dotenv import load_dotenv
 load_dotenv()
 logging.basicConfig(level=logging.ERROR)
@@ -47,6 +48,7 @@ def format_cpf(cpf: str) -> str:
   else:
     return cpf
 
+@st.cache_data(ttl=600)  # Cache for 10 minutes
 def execute_query(query):
   """Executa uma query no BigQuery e retorna um DataFrame."""
   try:
@@ -56,6 +58,7 @@ def execute_query(query):
     logging.error(f"Error executing query: {e}")
     return pd.DataFrame()
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_lawsuit_data(user_id: int) -> pd.DataFrame:
   """Busca dados de processos para o user_id informado."""
   query = f"""
@@ -64,6 +67,7 @@ def fetch_lawsuit_data(user_id: int) -> pd.DataFrame:
   """
   return execute_query(query)
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_business_data(user_id: int) -> pd.DataFrame:
   """Busca dados de relacionamento empresarial para o user_id informado."""
   query = f"""
@@ -72,6 +76,7 @@ def fetch_business_data(user_id: int) -> pd.DataFrame:
   """
   return execute_query(query)
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_sanctions_history(user_id: int) -> pd.DataFrame:
   """Busca dados de sanções para o user_id informado."""
   query = f"""
@@ -80,6 +85,7 @@ def fetch_sanctions_history(user_id: int) -> pd.DataFrame:
   """
   return execute_query(query)
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_denied_transactions(user_id: int) -> pd.DataFrame:
   """Busca transações negadas para o user_id (merchant_id)."""
   query = f"""
@@ -88,6 +94,7 @@ def fetch_denied_transactions(user_id: int) -> pd.DataFrame:
   """
   return execute_query(query)
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_denied_pix_transactions(user_id: int) -> pd.DataFrame:
   """Busca transações PIX negadas para o user_id."""
   query = f"""
@@ -96,6 +103,7 @@ def fetch_denied_pix_transactions(user_id: int) -> pd.DataFrame:
   """
   return execute_query(query)
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_prison_transactions(user_id: int) -> pd.DataFrame:
   """Busca transações no presídio para o user_id informado."""
   query = f"""
@@ -104,6 +112,7 @@ def fetch_prison_transactions(user_id: int) -> pd.DataFrame:
   """
   return execute_query(query)
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_bets_pix_transfers(user_id: int) -> pd.DataFrame:
   """Busca transações de apostas via PIX para o user_id informado."""
   query = f"""
@@ -133,6 +142,7 @@ def convert_decimals(data):
   else:
     return data
 
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
 def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
   """Gera um relatório para merchant."""
   query_merchants = f"""
@@ -245,6 +255,7 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
   }
   return report
 
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
 def cardholder_report(user_id: int, alert_type: str, pep_data=None) -> dict:
   """Gera um relatório para cardholders."""
   query_cardholders = f"""
@@ -475,7 +486,7 @@ Histórico de Offenses:
 Transações de Apostas via PIX:
 {bets_pix_transfers_json}
 """
-  if alert_type == 'betting_houses_alert [BR]' and betting_houses is not None:
+  if alert_type == 'betting_houses_alert' and betting_houses is not None:
     prompt += f"""
 A primeira frase da sua análise deve ser: "Cliente está transacionando com casas de apostas."
 
@@ -731,22 +742,30 @@ def format_export_payload(user_id, description, business_validation):
     if risk_score_match:
       risk_score = int(risk_score_match.group(1))
     
-    # Nova lógica de classificação baseada no score
-    if risk_score <= 4:
-      # Baixo risco (1-4): normal
+    # Nova lógica de classificação baseada no score atualizada
+    if risk_score <= 5:
+      # Baixo risco (1-5): normal
       conclusion = "normal"
-    elif risk_score <= 6:
-      # Médio risco (5-6): normal com aviso
+      priority = "high"
+    elif risk_score == 6:
+      # Médio risco (6): normal com aviso
       conclusion = "normal"
+      priority = "high"
       # Adicionar texto de aviso ao final da descrição
       if not "Caso de médio risco" in clean_description:
         clean_description += "\n\nOBS: Caso de médio risco que deve ser monitorado."
-    elif risk_score <= 9:
-      # Alto risco (7-9): suspicious
+    elif risk_score <= 8:
+      # Risco moderado (7-8): suspicious mid
       conclusion = "suspicious"
+      priority = "mid"
+    elif risk_score == 9:
+      # Alto risco (9): suspicious high
+      conclusion = "suspicious"
+      priority = "high"
     else:
-      # Risco extremo (10): offense
+      # Risco extremo (10): offense high
       conclusion = "offense"
+      priority = "high"
     
     # Se explicitamente mencionar normalizar o caso, mantem como normal
     if "normalizar o caso" in clean_description.lower() and conclusion != "offense":
@@ -757,10 +776,15 @@ def format_export_payload(user_id, description, business_validation):
     "description": clean_description,
     "analysis_type": "manual",
     "conclusion": conclusion,
-    "priority": "high",
+    "priority": "high",  # Mantém priority high por padrão se não foi setado acima
     "automatic_pipeline": True,
     "offense_group": "illegal_activity",
     "offense_name": "money_laundering",
     "related_analyses": []
   }
+  
+  # Atualiza a prioridade se foi definida acima
+  if 'priority' in locals():
+    payload["priority"] = priority
+    
   return payload
