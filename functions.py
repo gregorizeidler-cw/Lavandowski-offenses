@@ -672,9 +672,9 @@ Importante - Ao final da sua análise, você DEVE incluir uma classificação de
 
 - 1 a 5: Baixo risco (Normal - não exige ação adicional)
 - 6: Médio risco (Normal com aviso de monitoramento)
-- 7 a 8: Médio-Alto risco (Suspicious Mid - requer verificação)
-- 9: Alto risco (Suspicious High - requer Business Validation urgente - BV)
-- 10: Risco extremo (Offense High - requer descredenciamento e reporte ao COAF)
+- 7 a 8: Médio-Alto risco (requer verificação)
+- 9: Alto risco (requer Business Validation urgente - BV)
+- 10: Risco extremo (requer descredenciamento e reporte ao COAF)
 
 Fatores para considerar na classificação de risco:
 - Volume e frequência de transações
