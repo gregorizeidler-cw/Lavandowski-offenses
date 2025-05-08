@@ -741,12 +741,12 @@ def format_export_payload(user_id, description, business_validation):
       conclusion = "normal"
       # Adicionar texto de aviso ao final da descrição
       if not "Caso de médio risco" in clean_description:
-        clean_description += "\n\nOBS: Caso de médio risco que deve ser monitorado."
+        clean_description += "\n\nOBS: Caso de médio risco que requer monitoramento contínuo."
     elif risk_score <= 8:
       # Risco médio-alto (7-8): suspicious mid
       conclusion = "suspicious"
       if not "Caso de risco médio-alto" in clean_description:
-        clean_description += "\n\nOBS: Caso de risco médio-alto que requer atenção (suspicious mid)."
+        clean_description += "\n\nOBS: Caso de risco médio-alto que requer validação do negócio, sem necessidade de bloqueio temporário."
       payload = {
         "user_id": user_id,
         "description": clean_description,
