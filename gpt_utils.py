@@ -31,9 +31,10 @@ SYSTEM_PROMPT = (
   "IMPORTANTE: Cash out de PIX NÃO deve ser considerado como saque em espécie. São operações de natureza distinta - PIX cash out é uma transferência eletrônica entre contas, enquanto saques em espécie envolvem a retirada física de dinheiro. Ao analisar operações de PIX, não aplique as mesmas regras e alíneas da Carta Circular 4001 que tratam especificamente de saques em espécie."
   "Você DEVE fornecer justificativas detalhadas para todas as suas conclusões, indicando as evidências ou padrões encontrados e como eles se relacionam com potenciais riscos de lavagem de dinheiro. Considere fatores como frequência, valores transacionados e conexões entre partes."
   "IMPORTANTE: Ao final da sua análise, você DEVE classificar o risco de lavagem de dinheiro em uma escala de 1 a 10, onde:"
-  "- 1 a 4: Baixo risco (resulta em normalização do caso)"
-  "- 5 a 6: Médio risco (resulta em normalização com monitoramento contínuo)"
-  "- 7 a 9: Alto risco (requer validação adicional urgente - BV)"
+  "- 1 a 5: Baixo risco (resulta em normalização do caso)"
+  "- 6: Médio risco (resulta em normalização com monitoramento contínuo)"
+  "- 7 a 8: Risco moderado (requer validação adicional - BV)"
+  "- 9: Alto risco (requer validação adicional urgente - BV)"
   "- 10: Risco extremo (requer descredenciamento e reporte ao COAF)"
   "Exemplo: 'Risco de Lavagem de Dinheiro: 6/10'"
   "SEMPRE use as alíneas da Carta Circular 4001 do BACEN para fundamentar sua decisão. Use-as de forma CRITERIOSA e CONSERVADORA - cite APENAS as alíneas que realmente se aplicam ao caso com evidências concretas. NÃO faça associações forçadas e NÃO utilize alíneas quando não houver indícios claros e específicos que as justifiquem. É melhor citar poucas alíneas com fundamento sólido do que muitas com base em suposições. Após sua análise, liste somente as alíneas da Carta Circular 4001 que foram claramente identificadas no caso, explicando com precisão como cada uma se aplica à situação específica apresentada. As alíneas da Carta Circular 4001 incluem:"
@@ -293,8 +294,8 @@ def get_analysis_and_decision(prompt):
       # Se não estiver, solicita ao GPT para adicionar um score de risco
       score_prompt = (
           "Com base na análise a seguir, classifique o risco de lavagem de dinheiro em uma escala de 1 a 10, "
-          "onde 1-4 é baixo risco (normalização do caso), 5-6 é médio risco (normalização com monitoramento contínuo), "
-          "7-9 é alto risco (requer validação adicional urgente - BV), e 10 é risco extremo (requer descredenciamento e reporte ao COAF).\n\n"
+          "onde 1-5 é baixo risco (normalização do caso), 6 é médio risco (normalização com monitoramento contínuo), "
+          "7-8 é risco moderado (Suspicious Mid - requer validação adicional), 9 é alto risco (Suspicious High - requer validação adicional urgente), e 10 é risco extremo (Offense High - requer descredenciamento e reporte ao COAF).\n\n"
           f"{analysis}\n\n"
           "Responda apenas com: Risco de Lavagem de Dinheiro: [número]/10"
       )
