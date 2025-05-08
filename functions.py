@@ -107,8 +107,20 @@ def fetch_prison_transactions(user_id: int) -> pd.DataFrame:
 def fetch_bets_pix_transfers(user_id: int) -> pd.DataFrame:
   """Busca transações de apostas via PIX para o user_id informado."""
   query = f"""
-  SELECT * FROM `infinitepay-production.metrics_amlft.bets_pix_transfers`
-  WHERE user_id = {user_id}
+    SELECT
+  transfer_type,
+  pix_status,
+  user_id,
+  user_name,
+  gateway,
+  gateway_document_number,
+  gateway_pix_key,
+  gateway_name,
+  SUM(transfer_amount) total_amount,
+  COUNT(pix_transfer_id) count_transactions
+FROM `infinitepay-production.metrics_amlft.bets_pix_transfers`
+WHERE user_id = {user_id}
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
   """
   return execute_query(query)
 
@@ -658,10 +670,11 @@ Na sua análise, descreva:
 
 Importante - Ao final da sua análise, você DEVE incluir uma classificação de risco de lavagem de dinheiro em uma escala de 1 a 10, seguindo estas diretrizes:
 
-- 1 a 3: Baixo risco (caso normal, não exige ação adicional)
-- 4 a 6: Médio risco (caso normal com aviso de monitoramento)
-- 8 a 9: Alto risco (requer Business Validation urgente - BV)
-- 10: Risco extremo (requer Business Validation urgente e imediata - BV)
+- 1 a 5: Baixo risco (Normal - não exige ação adicional)
+- 6: Médio risco (Normal com aviso de monitoramento)
+- 7 a 8: Médio-Alto risco (Suspicious Mid - requer verificação)
+- 9: Alto risco (Suspicious High - requer Business Validation urgente - BV)
+- 10: Risco extremo (Offense High - requer descredenciamento e reporte ao COAF)
 
 Fatores para considerar na classificação de risco:
 - Volume e frequência de transações
@@ -720,20 +733,37 @@ def format_export_payload(user_id, description, business_validation):
       risk_score = int(risk_score_match.group(1))
     
     # Nova lógica de classificação baseada no score
-    if risk_score <= 4:
-      # Baixo risco (1-4): normal
+    if risk_score <= 5:
+      # Baixo risco (1-5): normal
       conclusion = "normal"
     elif risk_score <= 6:
-      # Médio risco (5-6): normal com aviso
+      # Médio risco (6): normal com aviso
       conclusion = "normal"
       # Adicionar texto de aviso ao final da descrição
       if not "Caso de médio risco" in clean_description:
         clean_description += "\n\nOBS: Caso de médio risco que deve ser monitorado."
+    elif risk_score <= 8:
+      # Risco médio-alto (7-8): suspicious mid
+      conclusion = "suspicious"
+      if not "Caso de risco médio-alto" in clean_description:
+        clean_description += "\n\nOBS: Caso de risco médio-alto que requer atenção (suspicious mid)."
+      payload = {
+        "user_id": user_id,
+        "description": clean_description,
+        "analysis_type": "manual",
+        "conclusion": conclusion,
+        "priority": "mid",
+        "automatic_pipeline": True,
+        "offense_group": "illegal_activity",
+        "offense_name": "money_laundering",
+        "related_analyses": []
+      }
+      return payload
     elif risk_score <= 9:
-      # Alto risco (7-9): suspicious
+      # Alto risco (9): suspicious high
       conclusion = "suspicious"
     else:
-      # Risco extremo (10): offense
+      # Risco extremo (10): offense high
       conclusion = "offense"
     
     # Se explicitamente mencionar normalizar o caso, mantem como normal
