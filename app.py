@@ -1,3 +1,23 @@
+"""
+Lavandowski - AML Analysis App
+
+Este aplicativo analisa dados de usuários para detecção de lavagem de dinheiro.
+
+Otimizações de performance implementadas:
+1. st.cache_data - Usado para cache de consultas de banco de dados frequentes
+   - Funções de fetch_* em app.py e functions.py decoradas com @st.cache_data
+   - TTL (Time To Live) configurado entre 30 min e 1 hora dependendo da função
+   
+2. st.session_state - Usado para manter resultados entre reruns do Streamlit
+   - Armazena resultados de análises já processadas
+   - Evita reprocessamento quando parâmetros não mudam
+   - Reset automático do cache quando days_to_fetch muda
+
+3. Otimização de consultas
+   - Fetch único de dados usados múltiplas vezes
+   - Reutilização de resultados quando possível
+"""
+
 import os
 import streamlit as st
 import pandas as pd
@@ -17,12 +37,82 @@ import datetime
 import logging
 import re
 
+# Initialize session state for caching intermediate results
+if 'analyzed_users' not in st.session_state:
+    st.session_state.analyzed_users = {}
+if 'cache_expire_time' not in st.session_state:
+    st.session_state.cache_expire_time = datetime.datetime.now() + datetime.timedelta(hours=1)
+if 'current_day_fetch' not in st.session_state:
+    st.session_state.current_day_fetch = None
+
 st.set_page_config(
     page_title="Lavandowski - AML Analysis",
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Custom JavaScript for enhanced UI
+st.markdown("""
+<script type="text/javascript">
+document.addEventListener('DOMContentLoaded', function() {
+    // Add modern animations and transitions
+    const addAnimations = () => {
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeInUp {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            
+            .stApp div[data-testid="stVerticalBlock"] > div {
+                animation: fadeInUp 0.4s ease-out forwards;
+                animation-delay: calc(var(--index, 0) * 0.1s);
+            }
+            
+            .stButton button {
+                transition: all 0.3s ease !important;
+                transform: scale(1);
+            }
+            
+            .stButton button:hover {
+                transform: scale(1.05);
+                filter: brightness(1.1);
+            }
+            
+            /* Add glass morphism effect to cards */
+            div[data-testid="stVerticalBlock"] > div {
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+                transition: box-shadow 0.3s ease, transform 0.3s ease;
+            }
+            
+            div[data-testid="stVerticalBlock"] > div:hover {
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+                transform: translateY(-5px);
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // Add animation delay to each element
+        const blocks = document.querySelectorAll('div[data-testid="stVerticalBlock"] > div');
+        blocks.forEach((block, index) => {
+            block.style.setProperty('--index', index);
+        });
+    };
+    
+    // Apply animations
+    setTimeout(addAnimations, 500);
+    
+    // Reapply animations on navigation
+    const observer = new MutationObserver(() => {
+        setTimeout(addAnimations, 500);
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+});
+</script>
+""", unsafe_allow_html=True)
 
 st.markdown("""
 <style>
@@ -43,6 +133,117 @@ st.markdown("""
       --bg-active: rgba(40, 55, 76, 1);
       --highlight-color: rgba(72, 133, 237, 0.15);
       --card-border: rgba(80, 100, 136, 0.2);
+  }
+  
+  /* Modern JS Framework Look */
+  .main .block-container {
+      padding: 2rem;
+      max-width: 100%;
+  }
+  
+  /* Glass morphism for cards */
+  .dashboard-card {
+      background: rgba(25, 40, 61, 0.7);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      border-radius: 16px;
+      padding: 24px;
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  }
+  
+  .dashboard-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+      border-color: rgba(72, 133, 237, 0.3);
+  }
+  
+  /* Modern button styles */
+  .stButton > button {
+      background: linear-gradient(135deg, var(--accent-color), var(--accent-color-secondary)) !important;
+      color: white !important;
+      border: none !important;
+      border-radius: 8px !important;
+      padding: 0.6rem 1.5rem !important;
+      font-weight: 600 !important;
+      letter-spacing: 0.5px !important;
+      text-transform: uppercase !important;
+      transition: all 0.3s ease !important;
+      box-shadow: 0 4px 10px rgba(72, 133, 237, 0.3) !important;
+  }
+  
+  .stButton > button:hover {
+      transform: translateY(-2px) !important;
+      box-shadow: 0 6px 15px rgba(72, 133, 237, 0.4) !important;
+  }
+  
+  .stButton > button:active {
+      transform: translateY(1px) !important;
+      box-shadow: 0 2px 5px rgba(72, 133, 237, 0.4) !important;
+  }
+  
+  /* Sleek inputs */
+  .stTextInput > div > div > input, 
+  .stNumberInput > div > div > input {
+      border-radius: 8px !important;
+      border: 1px solid var(--border-color) !important;
+      padding: 0.5rem 1rem !important;
+      background-color: rgba(19, 32, 51, 0.6) !important;
+      color: var(--text-primary) !important;
+      transition: all 0.3s ease !important;
+  }
+  
+  .stTextInput > div > div > input:focus, 
+  .stNumberInput > div > div > input:focus {
+      border-color: var(--accent-color) !important;
+      box-shadow: 0 0 0 2px rgba(72, 133, 237, 0.2) !important;
+  }
+  
+  /* Modern select boxes */
+  .stSelectbox > div > div > div,
+  .stMultiselect > div > div > div {
+      border-radius: 8px !important;
+      border: 1px solid var(--border-color) !important;
+      background-color: rgba(19, 32, 51, 0.6) !important;
+  }
+  
+  /* Animation for elements */
+  @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .main-header, .sub-header, .chart-container, .stat-value {
+      animation: fadeIn 0.5s ease-out forwards;
+  }
+  
+  /* Main app header with modern gradient */
+  .main-header {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 1.5rem;
+      text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.3);
+      border-left: 4px solid var(--accent-color);
+      padding-left: 16px;
+      letter-spacing: -0.5px;
+      background: linear-gradient(120deg, #FFFFFF, #C8D4E9);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+  }
+  
+  /* Modern stat values with gradient */
+  .stat-value {
+      font-size: 2.7rem;
+      font-weight: 700;
+      margin: 15px 0;
+      text-align: center;
+      letter-spacing: -0.5px;
+      line-height: 1;
+      background: linear-gradient(120deg, var(--text-primary), rgba(255,255,255,0.85));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
   }
   .main-header {
       font-size: 2.2rem;
@@ -264,53 +465,6 @@ st.markdown("""
       background-color: var(--bg-primary);
       border-right: 1px solid var(--border-color);
   }
-  .stButton > button {
-      background-color: var(--accent-color);
-      color: white;
-      border: none;
-      font-weight: 600;
-      padding: 0.7rem 1.5rem;
-      border-radius: 8px;
-      transition: all 0.3s ease;
-      box-shadow: 0 2px 6px rgba(72, 133, 237, 0.3);
-      position: relative;
-      overflow: hidden;
-  }
-  .stButton > button:hover {
-      background-color: var(--accent-color-secondary);
-      box-shadow: 0 4px 10px rgba(72, 133, 237, 0.4);
-      transform: translateY(-2px);
-  }
-  .stButton > button:active {
-      transform: translateY(1px);
-      box-shadow: 0 2px 5px rgba(72, 133, 237, 0.4);
-  }
-  .stButton > button::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 5px;
-      height: 5px;
-      background: rgba(255, 255, 255, 0.5);
-      opacity: 0;
-      border-radius: 100%;
-      transform: scale(1, 1) translate(-50%, -50%);
-      transform-origin: 50% 50%;
-  }
-  .stButton > button:focus:not(:active)::after {
-      animation: ripple 1s ease-out;
-  }
-  @keyframes ripple {
-      0% {
-          transform: scale(0, 0);
-          opacity: 0.5;
-      }
-      100% {
-          transform: scale(100, 100);
-          opacity: 0;
-      }
-  }
   .stProgress .st-dt {
       background-color: var(--accent-color);
   }
@@ -450,15 +604,34 @@ def send_payload(payload, key_master):
     response = requests.post(url, headers=headers, json=payload)
     return response.text
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_flagged_users():
-    if USER_ID:
-        return [{"user_id": int(USER_ID), "alert_type": "Custom Alert", "business_validation": True}]
-    else:
-        query = fetch_combined_query
-        query_job = bigquery_client.query(query)
+    """
+    Busca usuários marcados para análise AML.
+    Returns:
+        list: Lista de usuários sinalizados
+    """
+    try:
+        query_job = bigquery_client.query(fetch_combined_query)
         results = query_job.result()
-        return [dict(row, **{"business_validation": False}) for row in results]
+        
+        users_list = []
+        for row in results:
+            user_info = {
+                'user_id': row.user_id,
+                'alert_date': row.alert_date,
+                'alert_type': row.alert_type,
+                'score': row.score,
+                'features': row.features
+            }
+            users_list.append(user_info)
+        
+        return users_list
+    except Exception as e:
+        logging.error(f"Erro ao buscar usuários: {str(e)}")
+        return []
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_betting_houses(user_id=None):
     """
     Retorna uma lista de casas de apostas para o usuário específico.
@@ -509,6 +682,7 @@ def fetch_betting_houses(user_id=None):
         ])
     return pd.DataFrame()
 
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
 def fetch_pep_data(user_id):
     pep_query = rf"""
     SELECT * FROM `infinitepay-production.metrics_amlft.lavandowski_pep_transactions_data` WHERE user_id = {user_id}
@@ -518,22 +692,62 @@ def fetch_pep_data(user_id):
     return pd.DataFrame([dict(row) for row in results])
 
 def analyze_user(user_data, betting_houses=None, pep_data=None):
+    """
+    Analisa um usuário e gera um payload para exportação.
+    Args:
+        user_data (dict): Dados do usuário
+        betting_houses (DataFrame): DataFrame com casas de apostas
+        pep_data (DataFrame): DataFrame com dados PEP
+    Returns:
+        dict: Payload para exportação
+    """
     user_id = user_data['user_id']
-    alert_type = user_data['alert_type']
-    features = user_data.get('features')
-    merchant_data = merchant_report(user_id, alert_type, pep_data=pep_data)
-    if not merchant_data['merchant_info']:
-        report_data = cardholder_report(user_id, alert_type, pep_data=pep_data)
-        user_type = "Cardholder"
-    else:
-        report_data = merchant_data
-        user_type = "Merchant"
-    report_data['user_id'] = user_id
-    prompt = generate_prompt(report_data, user_type, alert_type, betting_houses=betting_houses, pep_data=pep_data, features=features)
-    gpt_analysis = get_gpt_analysis(prompt)
-    business_validation = user_data.get("business_validation", False)
-    export_payload = format_export_payload(user_id, gpt_analysis, business_validation)
-    return export_payload
+    alert_type = user_data.get('alert_type', 'Unknown Alert')
+    
+    # Check if user is already analyzed and cache is still valid
+    cache_valid = st.session_state.cache_expire_time > datetime.datetime.now()
+    if user_id in st.session_state.analyzed_users and cache_valid:
+        return st.session_state.analyzed_users[user_id]
+    
+    try:
+        # Get user type (merchant or cardholder)
+        query = f"""
+        SELECT u.id, u.name, u.role FROM `infinitepay-production.maindb.users` u WHERE u.id = {user_id}
+        """
+        user_role_df = bigquery_client.query(query).result().to_dataframe()
+        user_role = user_role_df['role'].iloc[0] if not user_role_df.empty else 'unknown'
+        
+        if user_role in ['onboarding_merchant', 'merchant']:
+            report_data = merchant_report(user_id, alert_type, pep_data)
+            user_type = 'merchant'
+        else:
+            report_data = cardholder_report(user_id, alert_type, pep_data)
+            user_type = 'cardholder'
+        
+        features = user_data.get('features', None)
+        prompt = generate_prompt(report_data, user_type, alert_type, betting_houses, pep_data, features)
+        analysis = get_gpt_analysis(prompt)
+        
+        risk_score_match = re.search(r'Risco de Lavagem de Dinheiro: (\d+)/10', analysis)
+        risk_score = int(risk_score_match.group(1)) if risk_score_match else 5
+        
+        conclusion = "suspicious" if risk_score >= 6 else "normal"
+        
+        if "CPF em lista de PEPs" in analysis and "Risco de Lavagem de Dinheiro: 10/10" in analysis:
+            conclusion = "offense"
+            
+        result = format_export_payload(user_id, analysis, user_data.get('business_validation', False))
+        result["conclusion"] = conclusion
+        result["risk_score"] = risk_score
+        
+        # Cache the result
+        st.session_state.analyzed_users[user_id] = result
+        
+        return result
+    except Exception as e:
+        logging.error(f"Erro ao analisar usuário {user_id}: {str(e)}")
+        return format_export_payload(user_id, f"Erro na análise: {str(e)}", 
+                             user_data.get('business_validation', False))
 
 def run_bot():
     flagged_users = fetch_flagged_users()
@@ -585,14 +799,18 @@ def run_bot():
             risk_scores.append(risk_score)
             if export_payload['conclusion'] == 'suspicious':
                 suspicious_count += 1
-            if risk_score <= 4:
+            if risk_score <= 5:
                 risk_level = "Baixo Risco"
                 risk_badge = "risk-badge-low"
-            elif risk_score <= 6:
+            elif risk_score == 6:
                 risk_level = "Médio Risco"
                 risk_badge = "risk-badge-medium"
-            elif risk_score <= 9:
-                risk_level = "Alto Risco"
+            elif risk_score <= 8:
+                risk_level = "Suspicious Mid"
+                risk_badge = "risk-badge-medium"
+                risk_badge = risk_badge.replace("medium", "medium\" style=\"background-color: #D17A00")
+            elif risk_score == 9:
+                risk_level = "Suspicious High"
                 risk_badge = "risk-badge-high"
             else:
                 risk_level = "Risco Extremo"
@@ -606,11 +824,16 @@ def run_bot():
                     conclusion = 'Normal (monitorar)'
                     conclusion_badge = "risk-badge-medium"
             elif export_payload['conclusion'] == 'suspicious':
-                conclusion = 'Suspicious'
-                conclusion_badge = "risk-badge-high"
+                # Verifica a prioridade para distinguir entre suspicious mid e high
+                if export_payload.get('priority') == 'mid':
+                    conclusion = 'Suspicious Mid'
+                    conclusion_badge = "risk-badge-medium\" style=\"background-color: #D17A00"
+                else:
+                    conclusion = 'Suspicious High'
+                    conclusion_badge = "risk-badge-high"
             elif export_payload['conclusion'] == 'offense':
-                conclusion = 'Offense'
-                conclusion_badge = "risk-badge-high"
+                conclusion = 'Offense High'
+                conclusion_badge = "risk-badge-high\" style=\"background-color: #d32f2f"
             else:
                 conclusion = 'Indefinido'
                 conclusion_badge = "risk-badge-medium"
@@ -718,6 +941,13 @@ def main():
             value=7,
             help="Define quantos dias no passado serão analisados"
         )
+        
+        # Reset cache if days_to_fetch changes
+        if st.session_state.current_day_fetch != days_to_fetch:
+            st.session_state.analyzed_users = {}
+            st.session_state.current_day_fetch = days_to_fetch
+            st.session_state.cache_expire_time = datetime.datetime.now() + datetime.timedelta(hours=1)
+        
         analysis_type = st.radio(
             "Tipo de Análise",
             options=["Básica (GPT-4)", "Aprimorada (GPT-4 + o3-mini)", "Com Pontuação de Risco (o3-mini)"],
@@ -740,10 +970,11 @@ def main():
         <div style="background-color: var(--bg-secondary); padding: 15px; border-radius: 10px; margin: 10px 0; box-shadow: var(--shadow);">
             <p style="margin: 0 0 12px 0; font-weight: 500;">Escala de Risco (1-10):</p>
             <div style="display: flex; gap: 8px; flex-direction: column;">
-                <div><span class='risk-badge-low'>1-4: Baixo Risco</span></div>
-                <div><span class='risk-badge-medium'>5-6: Médio Risco</span></div>
-                <div><span class='risk-badge-high'>7-9: Alto Risco</span></div>
-                <div><span class='risk-badge-high' style="background-color: #d32f2f;">10: Risco Extremo</span></div>
+                <div><span class='risk-badge-low'>1-5: Baixo Risco</span></div>
+                <div><span class='risk-badge-medium'>6: Médio Risco</span></div>
+                <div><span class='risk-badge-medium' style="background-color: #D17A00;">7-8: Suspicious Mid</span></div>
+                <div><span class='risk-badge-high'>9: Suspicious High</span></div>
+                <div><span class='risk-badge-high' style="background-color: #d32f2f;">10: Offense High</span></div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -824,12 +1055,16 @@ def main():
             percentual_suspeitos = round((total_suspeitos / total_analises * 100) if total_analises > 0 else 0)
             tendencia_analises = "↑" if variacao_percentual >= 0 else "↓"
             cor_tendencia = "var(--success-color)" if variacao_percentual >= 0 else "var(--danger-color)"
-            if score_medio <= 3:
+            if score_medio <= 5:
                 faixa_risco = "Faixa de Baixo Risco"
-            elif score_medio <= 7:
+            elif score_medio <= 6:
                 faixa_risco = "Faixa de Médio Risco"
+            elif score_medio <= 8:
+                faixa_risco = "Faixa de Suspicious Mid"
+            elif score_medio <= 9:
+                faixa_risco = "Faixa de Suspicious High"
             else:
-                faixa_risco = "Faixa de Alto Risco"
+                faixa_risco = "Faixa de Offense High"
             reducao_tempo = 8
         except Exception as e:
             logging.warning(f"Erro ao buscar estatísticas reais: {str(e)}")
@@ -919,9 +1154,11 @@ def main():
         risk_levels_query = f"""
         SELECT
             CASE
-                WHEN risk_score BETWEEN 1 AND 3 THEN 'Baixo'
-                WHEN risk_score BETWEEN 4 AND 7 THEN 'Médio'
-                ELSE 'Alto'
+                WHEN risk_score BETWEEN 1 AND 5 THEN 'Baixo'
+                WHEN risk_score = 6 THEN 'Médio'
+                WHEN risk_score BETWEEN 7 AND 8 THEN 'Suspicious Mid'
+                WHEN risk_score = 9 THEN 'Suspicious High'
+                WHEN risk_score = 10 THEN 'Offense High'
             END as nivel_risco,
             COUNT(*) as total
         FROM `infinitepay-production.metrics_amlft.lavandowski_offense_analysis`
@@ -931,7 +1168,9 @@ def main():
             CASE nivel_risco
                 WHEN 'Baixo' THEN 1
                 WHEN 'Médio' THEN 2
-                WHEN 'Alto' THEN 3
+                WHEN 'Suspicious Mid' THEN 3
+                WHEN 'Suspicious High' THEN 4
+                WHEN 'Offense High' THEN 5
             END
         """
         trend_daily_query = f"""
@@ -1010,7 +1249,7 @@ def main():
                         'type': 'pie',
                         'hole': 0.4,
                         'marker': {
-                            'colors': ['#0DB179', '#F7B846', '#E74C3C']
+                            'colors': ['#0DB179', '#F7B846', '#D17A00', '#E74C3C', '#d32f2f']
                         },
                     }],
                     'layout': {
