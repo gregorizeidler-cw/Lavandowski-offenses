@@ -538,7 +538,7 @@ def analyze_user(user_data, betting_houses=None, pep_data=None):
 def run_bot():
     flagged_users = fetch_flagged_users()
     betting_houses = fetch_betting_houses()
-    key_master = ""
+    key_master = "a3d229ab10904304930036a5c9cb2c07"
     results = []
     total_users = len(flagged_users)
     with st.spinner("Buscando usuários sinalizados..."):
@@ -580,11 +580,13 @@ def run_bot():
             export_payload = analyze_user(user_data, betting_houses=betting_houses, pep_data=pep_data)
             response_text = send_payload(export_payload, key_master)
             description = export_payload.get('description', '')
-            risk_score_match = re.search(r'Risco de Lavagem de Dinheiro: (\d+)/10', description)
+            risk_score_match = re.search(r'(?:[Rr]isco\s+(?:de\s+[Ll]avagem\s+(?:de\s+)?[Dd]inheiro)?|[Cc]lassificação\s+(?:de\s+)?[Rr]isco):?\s*(\d+)(?:/|\s*de\s*)10', description)
             risk_score = int(risk_score_match.group(1)) if risk_score_match else 0
             risk_scores.append(risk_score)
             if export_payload['conclusion'] == 'suspicious':
                 suspicious_count += 1
+            
+            # Define risk_level e risk_badge com base no risk_score
             if risk_score <= 5:
                 risk_level = "Baixo Risco"
                 risk_badge = "risk-badge-low"
@@ -609,7 +611,7 @@ def run_bot():
                     conclusion = 'Normal (monitorar)'
                     conclusion_badge = "risk-badge-medium"
             elif export_payload['conclusion'] == 'suspicious':
-                if "suspicious mid" in export_payload.get('description', ''):
+                if "suspicious mid" in export_payload.get('description', '') or "Caso de risco médio-alto" in export_payload.get('description', ''):
                     conclusion = 'Suspicious Mid'
                     conclusion_badge = "risk-badge-high"
                 else:
