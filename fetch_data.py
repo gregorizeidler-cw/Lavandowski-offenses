@@ -12,7 +12,7 @@ WITH excluded_users AS (
           OR
           (a.conclusion = 'offense' AND a.priority IN ('mid', 'high'))
         )
-    AND a.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 15 DAY)
+    AND a.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
     AND a.automatic_pipeline = true
 ),
 traditional_alerts AS (
@@ -51,10 +51,11 @@ traditional_alerts AS (
     8423054, 8832903, 15858378,18758930,
     19897830, 20583019, 20698248, 25071066, 25261377,
     24954170, 25769012, 27951634, 28279057, 28320827,
-    29865856, 29842685, 30046553, 29840096,34767121
+    29865856, 29842685, 30046553, 29840096,34767121,16368511
 
   )
-    AND an.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 12 DAY)
+    AND an.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)
+    AND o.name = 'money_laundering' 
 ),
 ai_alerts AS (
   SELECT
@@ -64,7 +65,7 @@ ai_alerts AS (
     score,
     features
   FROM `ai-services-sae.aml_model.predictions`
-  WHERE timestamp >= DATE_SUB(CURRENT_DATE(), INTERVAL 12 DAY)
+  WHERE timestamp >= DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
     AND label = 1
 ),
 all_alerts AS (
