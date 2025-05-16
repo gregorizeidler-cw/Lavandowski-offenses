@@ -538,7 +538,7 @@ def analyze_user(user_data, betting_houses=None, pep_data=None):
 def run_bot():
     flagged_users = fetch_flagged_users()
     betting_houses = fetch_betting_houses()
-    key_master = "a3d229ab10904304930036a5c9cb2c07"
+    key_master = ""
     results = []
     total_users = len(flagged_users)
     with st.spinner("Buscando usuários sinalizados..."):
