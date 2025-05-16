@@ -726,45 +726,45 @@ def format_export_payload(user_id, description, business_validation):
   if has_error:
     # Se houver erro, deixa a conclusão vazia para não enviar nem "suspicious" nem "normal"
     conclusion = ""
+    priority = "high"
   else:
     risk_score = 0
-    risk_score_match = re.search(r'Risco de Lavagem de Dinheiro: (\d+)/10', clean_description)
+    # Regex mais robusto que aceita variações na formatação
+    risk_score_match = re.search(r'(?:[Rr]isco\s+(?:de\s+[Ll]avagem\s+(?:de\s+)?[Dd]inheiro)?|[Cc]lassificação\s+(?:de\s+)?[Rr]isco):?\s*(\d+)(?:/|\s*de\s*)10', clean_description)
     if risk_score_match:
       risk_score = int(risk_score_match.group(1))
+    else:
+      # Tenta encontrar padrões alternativos como "Score: X/10"
+      alt_match = re.search(r'[Ss]core:?\s*(\d+)(?:/|\s*de\s*)10', clean_description)
+      if alt_match:
+        risk_score = int(alt_match.group(1))
     
     # Nova lógica de classificação baseada no score
     if risk_score <= 5:
       # Baixo risco (1-5): normal
       conclusion = "normal"
+      priority = "high"
     elif risk_score <= 6:
       # Médio risco (6): normal com aviso
       conclusion = "normal"
+      priority = "high"
       # Adicionar texto de aviso ao final da descrição
       if not "Caso de médio risco" in clean_description:
         clean_description += "\n\nOBS: Caso de médio risco que requer monitoramento contínuo."
     elif risk_score <= 8:
       # Risco médio-alto (7-8): suspicious mid
       conclusion = "suspicious"
+      priority = "mid"
       if not "Caso de risco médio-alto" in clean_description:
         clean_description += "\n\nOBS: Caso de risco médio-alto que requer validação do negócio, sem necessidade de bloqueio temporário."
-      payload = {
-        "user_id": user_id,
-        "description": clean_description,
-        "analysis_type": "manual",
-        "conclusion": conclusion,
-        "priority": "mid",
-        "automatic_pipeline": True,
-        "offense_group": "illegal_activity",
-        "offense_name": "money_laundering",
-        "related_analyses": []
-      }
-      return payload
     elif risk_score <= 9:
       # Alto risco (9): suspicious high
       conclusion = "suspicious"
+      priority = "high"
     else:
       # Risco extremo (10): offense high
       conclusion = "offense"
+      priority = "high"
     
     # Se explicitamente mencionar normalizar o caso, mantem como normal
     if "normalizar o caso" in clean_description.lower() and conclusion != "offense":
@@ -775,7 +775,7 @@ def format_export_payload(user_id, description, business_validation):
     "description": clean_description,
     "analysis_type": "manual",
     "conclusion": conclusion,
-    "priority": "high",
+    "priority": priority,
     "automatic_pipeline": True,
     "offense_group": "illegal_activity",
     "offense_name": "money_laundering",
