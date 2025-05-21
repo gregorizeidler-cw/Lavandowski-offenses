@@ -1,3 +1,4 @@
+fetch_combined_query = """
 WITH TransactionSums AS (
   SELECT
     t.merchant_id AS user_id,
@@ -118,3 +119,5 @@ SELECT *
 FROM all_alerts
 WHERE user_id NOT IN (SELECT user_id FROM excluded_users)
 ORDER BY alert_date DESC;
+
+""" 
