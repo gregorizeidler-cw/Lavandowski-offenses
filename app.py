@@ -516,7 +516,7 @@ def fetch_pep_data(user_id):
     query_job = bigquery_client.query(pep_query)
     results = query_job.result()
     return pd.DataFrame([dict(row) for row in results])
-
+ 
 def analyze_user(user_data, betting_houses=None, pep_data=None):
     user_id = user_data['user_id']
     alert_type = user_data['alert_type']
