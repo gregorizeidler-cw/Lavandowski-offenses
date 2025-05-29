@@ -781,4 +781,4 @@ def format_export_payload(user_id, description, business_validation):
     "offense_name": "money_laundering",
     "related_analyses": []
   }
-  return payload
+  return payload 
