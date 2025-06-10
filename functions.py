@@ -8,8 +8,17 @@ import logging
 import os
 import re
 from dotenv import load_dotenv
+
+# Importar BDC-UTILS se disponível
+try:
+    from bdc_utils import analyze_document
+    BDC_AVAILABLE = True
+except ImportError:
+    BDC_AVAILABLE = False
+    logging.warning("BDC-UTILS não disponível. Análise de contrapartes será desabilitada.")
+
 load_dotenv()
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.INFO)
 
 class CustomJSONEncoder(json.JSONEncoder):
   def default(self, obj):
@@ -133,6 +142,276 @@ def convert_decimals(data):
   else:
     return data
 
+def analyze_counterparties(cash_in_list: list, cash_out_list: list, user_id: int) -> dict:
+  """
+  Analisa as contrapartes (top 3 cash in e top 3 cash out) usando BDC-UTILS.
+  Foca especificamente em processos judiciais e sanções.
+  
+  Args:
+      cash_in_list (list): Lista de transações cash in
+      cash_out_list (list): Lista de transações cash out
+      user_id (int): ID do usuário para logging
+      
+  Returns:
+      dict: Resultado da análise das contrapartes com foco em processos e sanções
+  """
+  counterparty_analysis = {
+    "top_cash_in_analysis": [],
+    "top_cash_out_analysis": [],
+    "analysis_enabled": BDC_AVAILABLE,
+    "summary": {
+      "total_counterparties_analyzed": 0,
+      "counterparties_with_processes": 0,
+      "counterparties_with_sanctions": 0,
+      "high_risk_counterparties": 0
+    }
+  }
+  
+  if not BDC_AVAILABLE:
+    logging.warning(f"BDC-UTILS não disponível para análise do usuário {user_id}")
+    return counterparty_analysis
+  
+  def extract_document_from_transaction(transaction):
+    """Extrai documento da transação, tentando vários campos possíveis"""
+    possible_fields = [
+      'party_document_number',  # Campo correto para PIX concentration
+      'gateway_document_number', 'document_number', 'cpf', 'cnpj', 
+      'counterparty_document', 'payer_document', 'receiver_document',
+      'origin_document', 'destination_document'
+    ]
+    
+    for field in possible_fields:
+      if field in transaction and transaction[field]:
+        return str(transaction[field]).strip()
+    return None
+  
+  def extract_processes_and_sanctions(bdc_result):
+    """Extrai especificamente processos judiciais e sanções do resultado BDC"""
+    analysis = {
+      "document": None,
+      "name": None,
+      "processes": [],
+      "sanctions": [],
+      "has_processes": False,
+      "has_sanctions": False,
+      "risk_level": "BAIXO"
+    }
+    
+    if not bdc_result or 'Result' not in bdc_result:
+      logging.warning(f"BDC result inválido ou sem campo 'Result': {bdc_result}")
+      return analysis
+    
+    results = bdc_result.get('Result', [])
+    if not results:
+      logging.warning(f"Campo 'Result' vazio no BDC: {bdc_result}")
+      return analysis
+    
+    person_data = results[0] if results else {}
+    logging.info(f"Dados da pessoa encontrados: {list(person_data.keys())}")
+    
+    # DEBUG: Log completo dos dados recebidos
+    logging.info(f"DEBUG - Dados completos recebidos do BDC: {json.dumps(person_data, indent=2, default=str)}")
+    
+    # Extrair dados básicos - CORRIGIDO: BasicData ao invés de basic_data
+    basic_data = person_data.get('BasicData', {})
+    if basic_data:
+      analysis["document"] = basic_data.get('TaxIdNumber', '')
+      analysis["name"] = basic_data.get('Name', '')
+      logging.info(f"Dados básicos extraídos: {analysis['name']} - {analysis['document']}")
+    
+    # Extrair processos judiciais - CORRIGIDO: Processes ao invés de processes
+    processes_data = person_data.get('Processes', {})
+    logging.info(f"DEBUG - Processes data completa: {json.dumps(processes_data, indent=2, default=str)}")
+    
+    processes = processes_data.get('Lawsuits', []) if processes_data else []
+    logging.info(f"DEBUG - Lista de Lawsuits: {json.dumps(processes, indent=2, default=str)}")
+    logging.info(f"Processos encontrados: {len(processes)}")
+    logging.info(f"DEBUG - CONTAGEM EXATA DE PROCESSOS PARA {analysis.get('name', 'NOME_NAO_ENCONTRADO')}: {len(processes)} processos")
+    
+    if processes:
+      analysis["has_processes"] = True
+      # IMPORTANTE: Contar quantos processos realmente vamos adicionar
+      processes_to_add = processes[:10]  # Limitar a 10 processos mais relevantes
+      logging.info(f"DEBUG - PROCESSOS QUE SERÃO ADICIONADOS PARA {analysis.get('name', 'NOME_NAO_ENCONTRADO')}: {len(processes_to_add)} de {len(processes)} total")
+      
+      for i, process in enumerate(processes_to_add):
+        process_info = {
+          "process_number": process.get('Number', ''),
+          "court": process.get('CourtName', ''),
+          "subject": process.get('MainSubject', ''),
+          "type": process.get('Type', ''),
+          "court_level": process.get('CourtLevel', ''),
+          "court_type": process.get('CourtType', ''),
+          "district": process.get('CourtDistrict', '')
+        }
+        analysis["processes"].append(process_info)
+        logging.info(f"Processo {i+1}/{len(processes_to_add)} adicionado para {analysis.get('name', 'NOME_NAO_ENCONTRADO')}: {process_info['process_number']} - {process_info['subject']}")
+      
+      logging.info(f"DEBUG - TOTAL FINAL DE PROCESSOS ADICIONADOS PARA {analysis.get('name', 'NOME_NAO_ENCONTRADO')}: {len(analysis['processes'])}")
+    else:
+      logging.info(f"DEBUG - NENHUM PROCESSO ENCONTRADO PARA {analysis.get('name', 'NOME_NAO_ENCONTRADO')}")
+    
+    # Extrair sanções (KYC) - CORRIGIDO: KycData ao invés de kyc
+    kyc_data = person_data.get('KycData', {})
+    logging.info(f"DEBUG - KycData completa: {json.dumps(kyc_data, indent=2, default=str)}")
+    
+    sanctions = []
+    
+    # Verificar PEP History
+    pep_history = kyc_data.get('PEPHistory', []) if kyc_data else []
+    logging.info(f"DEBUG - PEPHistory: {json.dumps(pep_history, indent=2, default=str)}")
+    if pep_history:
+      for pep in pep_history:
+        sanctions.append({
+          "type": "PEP",
+          "description": pep.get('Description', ''),
+          "source": "PEP Database"
+        })
+        logging.info(f"DEBUG - PEP adicionado: {pep}")
+    
+    # Verificar Sanctions History
+    sanctions_history = kyc_data.get('SanctionsHistory', []) if kyc_data else []
+    logging.info(f"DEBUG - SanctionsHistory: {json.dumps(sanctions_history, indent=2, default=str)}")
+    if sanctions_history:
+      for sanction in sanctions_history:
+        # FILTRO CRÍTICO: Só aceitar sanções com MatchRate = 100
+        match_rate = sanction.get('MatchRate', 0)
+        logging.info(f"DEBUG - Sanção encontrada: {sanction.get('Type', '')} - MatchRate: {match_rate}")
+        
+        if match_rate == 100:
+          sanctions.append({
+            "type": sanction.get('Type', ''),
+            "standardized_type": sanction.get('StandardizedSanctionType', ''),
+            "source": sanction.get('Source', ''),
+            "description": sanction.get('Details', {}).get('WarrantDescription', '') if sanction.get('Details') else '',
+            "match_rate": match_rate
+          })
+          logging.info(f"DEBUG - Sanção VÁLIDA adicionada (MatchRate=100): {sanction}")
+        else:
+          logging.warning(f"DEBUG - Sanção REJEITADA (MatchRate={match_rate}): {sanction.get('Type', '')} - {sanction.get('Source', '')}")
+          logging.warning(f"DEBUG - Detalhes da sanção rejeitada: Nome original='{sanction.get('Details', {}).get('OriginalName', '')}', Nome sanção='{sanction.get('Details', {}).get('SanctionName', '')}'")
+    
+    # Verificar flags de sanções atuais
+    if kyc_data:
+      is_currently_pep = kyc_data.get('IsCurrentlyPEP', False)
+      is_currently_sanctioned = kyc_data.get('IsCurrentlySanctioned', False)
+      logging.info(f"DEBUG - IsCurrentlyPEP: {is_currently_pep}, IsCurrentlySanctioned: {is_currently_sanctioned}")
+      
+      if is_currently_pep:
+        sanctions.append({
+          "type": "Current PEP",
+          "description": "Currently a Politically Exposed Person",
+          "source": "PEP Database"
+        })
+        logging.info(f"DEBUG - Current PEP flag adicionado")
+      
+      if is_currently_sanctioned:
+        sanctions.append({
+          "type": "Current Sanction",
+          "description": "Currently under sanctions",
+          "source": "Sanctions Database"
+        })
+        logging.info(f"DEBUG - Current Sanction flag adicionado")
+    
+    logging.info(f"DEBUG - Total de sanções coletadas: {len(sanctions)}")
+    logging.info(f"DEBUG - Lista final de sanções: {json.dumps(sanctions, indent=2, default=str)}")
+    
+    if sanctions:
+      analysis["has_sanctions"] = True
+      analysis["sanctions"] = sanctions
+      for sanction in sanctions:
+        logging.info(f"Sanção adicionada: {sanction['type']} - {sanction['source']}")
+    
+    # Determinar nível de risco
+    if analysis["has_sanctions"]:
+      analysis["risk_level"] = "ALTO"
+    elif analysis["has_processes"] and len(analysis["processes"]) > 3:
+      analysis["risk_level"] = "MÉDIO"
+    elif analysis["has_processes"]:
+      analysis["risk_level"] = "BAIXO-MÉDIO"
+    
+    logging.info(f"Análise final: processos={analysis['has_processes']}, sanções={analysis['has_sanctions']}, risco={analysis['risk_level']}")
+    return analysis
+  
+  # Analisar top 3 cash in
+  top_cash_in = sorted(cash_in_list, key=lambda x: float(x.get('pix_amount', 0)), reverse=True)[:3]
+  logging.info(f"Analisando {len(top_cash_in)} contrapartes Cash In para usuário {user_id}")
+  
+  for i, transaction in enumerate(top_cash_in):
+    document = extract_document_from_transaction(transaction)
+    logging.info(f"Cash In {i+1}: Documento extraído: {document}, Valor: {transaction.get('pix_amount', 0)}")
+    
+    if document:
+      try:
+        logging.info(f"Consultando BDC para documento: {document}")
+        bdc_result = analyze_document(document)
+        logging.info(f"Resultado BDC recebido para {document}: {bool(bdc_result)}")
+        
+        analysis = extract_processes_and_sanctions(bdc_result)
+        logging.info(f"Análise processada para {document}: processos={analysis['has_processes']}, sanções={analysis['has_sanctions']}")
+        logging.info(f"DEBUG - ANÁLISE COMPLETA PARA CONTRAPARTE {analysis.get('name', 'NOME_NAO_ENCONTRADO')} (DOC: {document}): {len(analysis.get('processes', []))} processos, {len(analysis.get('sanctions', []))} sanções, risco={analysis.get('risk_level', 'N/A')}")
+        
+        analysis["transaction_amount"] = transaction.get('pix_amount', 0)
+        analysis["transaction_date"] = transaction.get('created_at', '')  # Manter created_at se existir
+        analysis["transaction_type"] = "CASH_IN"
+        analysis["party_name"] = transaction.get('party', '')  # Adicionar nome da contraparte
+        counterparty_analysis["top_cash_in_analysis"].append(analysis)
+        
+        # Atualizar sumário
+        counterparty_analysis["summary"]["total_counterparties_analyzed"] += 1
+        if analysis["has_processes"]:
+          counterparty_analysis["summary"]["counterparties_with_processes"] += 1
+        if analysis["has_sanctions"]:
+          counterparty_analysis["summary"]["counterparties_with_sanctions"] += 1
+        if analysis["risk_level"] in ["ALTO", "MÉDIO"]:
+          counterparty_analysis["summary"]["high_risk_counterparties"] += 1
+          
+      except Exception as e:
+        logging.error(f"Erro ao analisar contraparte cash in {document}: {str(e)}")
+    else:
+      logging.warning(f"Documento não encontrado para transação Cash In {i+1}: {transaction}")
+  
+  # Analisar top 3 cash out
+  top_cash_out = sorted(cash_out_list, key=lambda x: float(x.get('pix_amount', 0)), reverse=True)[:3]
+  logging.info(f"Analisando {len(top_cash_out)} contrapartes Cash Out para usuário {user_id}")
+  
+  for i, transaction in enumerate(top_cash_out):
+    document = extract_document_from_transaction(transaction)
+    logging.info(f"Cash Out {i+1}: Documento extraído: {document}, Valor: {transaction.get('pix_amount', 0)}")
+    
+    if document:
+      try:
+        logging.info(f"Consultando BDC para documento: {document}")
+        bdc_result = analyze_document(document)
+        logging.info(f"Resultado BDC recebido para {document}: {bool(bdc_result)}")
+        
+        analysis = extract_processes_and_sanctions(bdc_result)
+        logging.info(f"Análise processada para {document}: processos={analysis['has_processes']}, sanções={analysis['has_sanctions']}")
+        logging.info(f"DEBUG - ANÁLISE COMPLETA PARA CONTRAPARTE {analysis.get('name', 'NOME_NAO_ENCONTRADO')} (DOC: {document}): {len(analysis.get('processes', []))} processos, {len(analysis.get('sanctions', []))} sanções, risco={analysis.get('risk_level', 'N/A')}")
+        
+        analysis["transaction_amount"] = transaction.get('pix_amount', 0)
+        analysis["transaction_date"] = transaction.get('created_at', '')  # Manter created_at se existir
+        analysis["transaction_type"] = "CASH_OUT"
+        analysis["party_name"] = transaction.get('party', '')  # Adicionar nome da contraparte
+        counterparty_analysis["top_cash_out_analysis"].append(analysis)
+        
+        # Atualizar sumário
+        counterparty_analysis["summary"]["total_counterparties_analyzed"] += 1
+        if analysis["has_processes"]:
+          counterparty_analysis["summary"]["counterparties_with_processes"] += 1
+        if analysis["has_sanctions"]:
+          counterparty_analysis["summary"]["counterparties_with_sanctions"] += 1
+        if analysis["risk_level"] in ["ALTO", "MÉDIO"]:
+          counterparty_analysis["summary"]["high_risk_counterparties"] += 1
+          
+      except Exception as e:
+        logging.error(f"Erro ao analisar contraparte cash out {document}: {str(e)}")
+    else:
+      logging.warning(f"Documento não encontrado para transação Cash Out {i+1}: {transaction}")
+  
+  logging.info(f"Análise de contrapartes concluída para usuário {user_id}: {counterparty_analysis['summary']}")
+  return counterparty_analysis
+
 def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
   """Gera um relatório para merchant."""
   query_merchants = f"""
@@ -221,6 +500,7 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
   bets_pix_transfers_df = fetch_bets_pix_transfers(user_id)
   bets_pix_transfers_list = bets_pix_transfers_df.to_dict(orient='records') if not bets_pix_transfers_df.empty else []
   bets_pix_transfers_list = convert_decimals(bets_pix_transfers_list)
+  counterparty_analysis = analyze_counterparties(cash_in_list, cash_out_list, user_id)
   report = {
     "merchant_info": merchant_info_dict,
     "total_cash_in_pix": total_cash_in_pix,
@@ -241,7 +521,8 @@ def merchant_report(user_id: int, alert_type: str, pep_data=None) -> dict:
     "prison_transactions": prison_transactions_list,
     "sanctions_history": sanctions_history_list,
     "denied_pix_transactions": denied_pix_transactions_list,
-    "bets_pix_transfers": bets_pix_transfers_list
+    "bets_pix_transfers": bets_pix_transfers_list,
+    "counterparty_analysis": counterparty_analysis
   }
   return report
 
@@ -315,6 +596,7 @@ def cardholder_report(user_id: int, alert_type: str, pep_data=None) -> dict:
   bets_pix_transfers_df = fetch_bets_pix_transfers(user_id)
   bets_pix_transfers_list = bets_pix_transfers_df.to_dict(orient='records') if not bets_pix_transfers_df.empty else []
   bets_pix_transfers_list = convert_decimals(bets_pix_transfers_list)
+  counterparty_analysis = analyze_counterparties(cash_in_list, cash_out_list, user_id)
   report = {
     "cardholder_info": cardholder_info_dict,
     "total_cash_in_pix": total_cash_in_pix,
@@ -332,7 +614,8 @@ def cardholder_report(user_id: int, alert_type: str, pep_data=None) -> dict:
     "prison_transactions": prison_transactions_list,
     "sanctions_history": sanctions_history_list,
     "denied_pix_transactions": denied_pix_transactions_list,
-    "bets_pix_transfers": bets_pix_transfers_list
+    "bets_pix_transfers": bets_pix_transfers_list,
+    "counterparty_analysis": counterparty_analysis
   }
   return report
 
@@ -354,6 +637,7 @@ def generate_prompt(report_data: dict, user_type: str, alert_type: str, betting_
   sanctions_history_json = json.dumps(report_data.get('sanctions_history', []), ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
   denied_pix_transactions_json = json.dumps(report_data.get('denied_pix_transactions', []), ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
   bets_pix_transfers_json = json.dumps(report_data.get('bets_pix_transfers', []), ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
+  counterparty_analysis_json = json.dumps(report_data.get('counterparty_analysis', {}), ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
   prompt = f"""
 Por favor, analise o caso abaixo.
 
@@ -423,6 +707,25 @@ Histórico de Offenses:
 
 Transações de Apostas via PIX:
 {bets_pix_transfers_json}
+
+Análise de Contrapartes (Top 3 Cash In e Cash Out):
+ATENÇÃO ESPECIAL: Esta seção contém análise das principais contrapartes do cliente no Big Data Corp, verificando processos judiciais e sanções.
+FOQUE ESPECIFICAMENTE EM:
+- Contrapartes com PROCESSOS JUDICIAIS (campo "has_processes": true)
+- Contrapartes com SANÇÕES (campo "has_sanctions": true) 
+- Nível de risco das contrapartes (campo "risk_level")
+- Detalhes dos processos: número, tribunal, assunto, status
+- Detalhes das sanções: tipo, fonte, descrição
+- Valores transacionados com contrapartes de alto risco
+
+INSTRUÇÕES PARA ANÁLISE:
+1. Identifique quantas contrapartes têm processos judiciais
+2. Identifique quantas contrapartes têm sanções
+3. Calcule o valor total transacionado com contrapartes de risco ALTO ou MÉDIO
+4. Detalhe os tipos de processos e sanções encontrados
+5. Avalie o impacto no risco geral do cliente
+
+{counterparty_analysis_json}
 """
   else:
     prompt += f"""
@@ -474,6 +777,25 @@ Histórico de Offenses:
 
 Transações de Apostas via PIX:
 {bets_pix_transfers_json}
+
+Análise de Contrapartes (Top 3 Cash In e Cash Out):
+ATENÇÃO ESPECIAL: Esta seção contém análise das principais contrapartes do cliente no Big Data Corp, verificando processos judiciais e sanções.
+FOQUE ESPECIFICAMENTE EM:
+- Contrapartes com PROCESSOS JUDICIAIS (campo "has_processes": true)
+- Contrapartes com SANÇÕES (campo "has_sanctions": true) 
+- Nível de risco das contrapartes (campo "risk_level")
+- Detalhes dos processos: número, tribunal, assunto, status
+- Detalhes das sanções: tipo, fonte, descrição
+- Valores transacionados com contrapartes de alto risco
+
+INSTRUÇÕES PARA ANÁLISE:
+1. Identifique quantas contrapartes têm processos judiciais
+2. Identifique quantas contrapartes têm sanções
+3. Calcule o valor total transacionado com contrapartes de risco ALTO ou MÉDIO
+4. Detalhe os tipos de processos e sanções encontrados
+5. Avalie o impacto no risco geral do cliente
+
+{counterparty_analysis_json}
 """
   if alert_type == 'betting_houses_alert [BR]' and betting_houses is not None:
     prompt += f"""
