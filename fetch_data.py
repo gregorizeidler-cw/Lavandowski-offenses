@@ -77,6 +77,7 @@ traditional_alerts AS (
       WHEN an.analyst_id = 29842685 THEN 'aml_prison_areas_alert'
       WHEN an.analyst_id = 30046553 THEN 'aml_pix_change_atm_alert'
       WHEN an.analyst_id = 29840096 THEN 'aml_blocked_contacts_alert'
+      WHEN an.analyst_id = 36239197 THEN 'cnpj_merchant_pix_aml_ctf_alert'
     END AS alert_type,
     CAST(NULL      AS FLOAT64) AS score,
     CAST(NULL      AS STRING ) AS features
@@ -87,12 +88,13 @@ traditional_alerts AS (
     ON act.offense_analysis_id = an.id
   WHERE 
     o.name = 'money_laundering'
-    AND an.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 17 DAY)
+    AND an.created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY)
     AND an.analyst_id IN (
       8423054, 8832903, 15858378, 16368511, 18758930,
       19897830, 20583019, 20698248, 25071066, 25261377,
       24954170, 25769012, 27951634, 28279057, 28320827,
-      29865856, 29842685, 30046553, 29840096, 34767121
+      29865856, 29842685, 30046553, 29840096, 34767121,
+      36239197
     )
 ),
 
@@ -105,7 +107,7 @@ ai_alerts AS (
     CAST(features AS STRING ) AS features
   FROM `ai-services-sae.aml_model.predictions`
   WHERE
-    timestamp >= DATE_SUB(CURRENT_DATE(), INTERVAL 17 DAY)
+    timestamp >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY)
     AND label = 1
 ),
 
@@ -121,4 +123,3 @@ WHERE user_id NOT IN (SELECT user_id FROM excluded_users)
 ORDER BY alert_date DESC;
 
 """ 
- 
