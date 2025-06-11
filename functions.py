@@ -1065,11 +1065,11 @@ def format_export_payload(user_id, description, business_validation):
     if risk_score <= 5:
       # Baixo risco (1-5): normal
       conclusion = "normal"
-      priority = "high"
+      priority = "low"
     elif risk_score <= 6:
       # Médio risco (6): normal com aviso
       conclusion = "normal"
-      priority = "high"
+      priority = "low"
       # Adicionar texto de aviso ao final da descrição
       if not "Caso de médio risco" in clean_description:
         clean_description += "\n\nOBS: Caso de médio risco que requer monitoramento contínuo."
